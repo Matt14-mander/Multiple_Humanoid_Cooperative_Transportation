@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="payload_with_handles">
+  <!-- Placeholder dimensions for the first closed-chain validation. -->
+  <link name="payload_body">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="9.0" />
+      <inertia ixx="0.0864" ixy="0" ixz="0"
+               iyy="0.3132" iyz="0" izz="0.3132" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.60 0.24 0.24" />
+      </geometry>
+      <material name="payload_body_material">
+        <color rgba="0.25 0.45 0.75 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.60 0.24 0.24" />
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- The link frames are also the two nominal grasp frames. -->
+  <joint name="payload_grasp_left_joint" type="fixed">
+    <origin xyz="-0.354 0 0" rpy="-1.5708 0 -1.5708" />
+    <parent link="payload_body" />
+    <child link="grasp_left" />
+  </joint>
+  <link name="grasp_left">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="0.5" />
+      <inertia ixx="0.00020833" ixy="0" ixz="0"
+               iyy="0.00437083" iyz="0" izz="0.00437083" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.32 0.05 0.05" />
+      </geometry>
+      <material name="handle_material">
+        <color rgba="0.85 0.65 0.15 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.32 0.05 0.05" />
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="payload_grasp_right_joint" type="fixed">
+    <origin xyz="0.354 0 0" rpy="-1.5708 0 1.5708" />
+    <parent link="payload_body" />
+    <child link="grasp_right" />
+  </joint>
+  <link name="grasp_right">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="0.5" />
+      <inertia ixx="0.00020833" ixy="0" ixz="0"
+               iyy="0.00437083" iyz="0" izz="0.00437083" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.32 0.05 0.05" />
+      </geometry>
+      <material name="handle_material">
+        <color rgba="0.85 0.65 0.15 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.32 0.05 0.05" />
+      </geometry>
+    </collision>
+  </link>
+</robot>

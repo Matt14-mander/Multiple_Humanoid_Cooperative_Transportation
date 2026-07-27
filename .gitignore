@@ -1,0 +1,27 @@
+# Python bytecode and caches
+**/__pycache__/
+**/*.py[cod]
+
+# Python packaging metadata
+**/*.egg-info/
+
+# Local environments, downloaded dependencies, tests and simulation outputs
+dual-tron1-mujoco/.deps/
+dual-tron1-mujoco/.venv-*/
+dual-tron1-mujoco/.pytest_tmp/
+dual-tron1-mujoco/.pytest_tmp*/
+dual-tron1-mujoco/.pytest_cache/
+dual-tron1-mujoco/runs/
+
+# Generated MJCF files contain machine-specific absolute mesh paths
+dual-tron1-mujoco/models/generated/
+
+# Local development note with broken/legacy encoding
+dual-tron1-mujoco/7-23.txt
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

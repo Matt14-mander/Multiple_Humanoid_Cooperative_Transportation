@@ -1,0 +1,38 @@
+{
+  "model": {
+    "robot_type": "WF_TRON1A",
+    "timestep": 0.001,
+    "robot_1_pose": [-0.7, 0.0, 0.92, 0.0],
+    "robot_2_pose": [0.7, 0.0, 0.92, 3.141592653589793],
+    "payload_pose": [0.0, 0.0, 1.16, 0.0],
+    "payload_mass_kg": 10.0,
+    "payload_body_size_m": [0.60, 0.24, 0.24],
+    "handle_size_m": [0.32, 0.05, 0.05],
+    "handle_center_x_m": 0.354,
+    "fixed_bases": true,
+    "grasp_mode": "soft_weld"
+  },
+  "control": {
+    "leg_kp": 40.0,
+    "leg_kd": 1.8,
+    "wheel_kd": 0.5,
+    "arm_j123_kp": 18.0,
+    "arm_j123_kd": 1.0,
+    "arm_j456_kp": 4.0,
+    "arm_j456_kd": 0.5,
+    "leg_torque_limit": 80.0,
+    "wheel_torque_limit": 40.0,
+    "arm_j123_torque_limit": 18.0,
+    "arm_j456_torque_limit": 3.0,
+    "policy_decimation": 10,
+    "action_scale_position": 0.25,
+    "action_scale_velocity": 3.0,
+    "minimum_base_height_m": 0.30,
+    "maximum_tilt_rad": 1.0
+  },
+  "run": {
+    "duration_s": 5.0,
+    "realtime": false,
+    "record_csv": "runs/latest.csv"
+  }
+}

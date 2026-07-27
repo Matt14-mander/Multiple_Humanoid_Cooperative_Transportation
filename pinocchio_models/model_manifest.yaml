@@ -1,0 +1,68 @@
+version: 1
+package_root: .
+
+airbot:
+  urdf: airbot/urdf/airbot_play_with_gripper.urdf
+  mesh_root: airbot/meshes
+  source_filename: airbot_play_v2_1_with_gripper.urdf
+  parsed_links: [base_link, link1, link2, link3, link4, link5, link6]
+  parsed_actuated_joint_count: 6
+  gripper_joints_present: false
+  gripper_geometry_mode: likely_fixed_in_link6_mesh
+  status: urdf_staged_meshes_pending
+
+robots:
+  WF_TRON1A:
+    urdf: robot_description/pointfoot/WF_TRON1A/urdf/robot_with_arm.urdf
+    mesh_root: robot_description/pointfoot/WF_TRON1A/meshes
+    actuated_joint_count: 14
+    floating_base_nq: 7
+    floating_base_nv: 6
+    expected_nq: 21
+    expected_nv: 20
+  SF_TRON1A:
+    urdf: robot_description/pointfoot/SF_TRON1A/urdf/robot_with_arm.urdf
+    mesh_root: robot_description/pointfoot/SF_TRON1A/meshes
+    actuated_joint_count: 14
+    floating_base_nq: 7
+    floating_base_nv: 6
+    expected_nq: 21
+    expected_nv: 20
+
+payload:
+  urdf: payload/payload_box.urdf
+  parameters_are_placeholders: true
+  mass_kg: 10.0
+  size_m: [0.6, 0.4, 0.3]
+
+payload_with_handles:
+  urdf: payload/payload_with_handles.urdf
+  parameters_are_placeholders: true
+  total_mass_kg: 10.0
+  body_size_m: [0.60, 0.24, 0.24]
+  handle_centers_m: [[-0.354, 0.0, 0.0], [0.354, 0.0, 0.0]]
+  handle_size_m: [0.32, 0.05, 0.05]
+  grasp_frames: [grasp_left, grasp_right]
+
+coupled_system:
+  robot_instances: [robot_1, robot_2]
+  payload_instance: payload
+  configuration_dimension: 49
+  velocity_dimension: 46
+  actuated_torque_dimension: 28
+  support_constraint_dimension: 12
+  grasp_constraint_dimension: 12
+  contact_wrench_dimension: 24
+  default_support_contact_model: fixed_3d_position
+  available_support_contact_models: [fixed_3d_position, rolling_no_slip]
+  wheel_radius_m: 0.127
+  rolling_ground_normal: [0.0, 0.0, 1.0]
+  support_frames:
+    WF_TRON1A: [wheel_L_Link, wheel_R_Link]
+    SF_TRON1A: [ankle_L_Link, ankle_R_Link]
+  grasp_frames:
+    robot_1: link6
+    robot_2: link6
+  contact_reference: LOCAL_WORLD_ALIGNED
+  contact_order: [robot_1_left_support, robot_1_right_support, robot_2_left_support, robot_2_right_support, payload_grasp_left, payload_grasp_right]
+  note: Build M, h, Jc, Jdotc*v, and the KKT system outside the URDF using Pinocchio constraint dynamics. Support multipliers are 3D forces; grasp multipliers are 6D force/moment wrenches.

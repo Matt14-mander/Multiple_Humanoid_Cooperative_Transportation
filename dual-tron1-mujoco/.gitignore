@@ -1,0 +1,8 @@
+.deps/
+.venv-*/
+.pytest_tmp/
+.pytest_tmp*/
+.pytest_cache/
+__pycache__/
+*.pyc
+runs/

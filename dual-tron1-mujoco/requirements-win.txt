@@ -1,0 +1,11 @@
+# The LIMX Windows wheel contains a CPython 3.8 x64 extension and requires
+# mujoco > 3.2.2 and numpy < 1.26.4.
+numpy==1.26.3
+mujoco==3.2.3
+onnxruntime>=1.16,<2
+scipy
+pandas
+pygame
+pyyaml
+pytest>=7,<9
+

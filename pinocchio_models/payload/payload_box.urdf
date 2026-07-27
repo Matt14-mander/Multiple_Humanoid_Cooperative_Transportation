@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="payload_box">
+  <link name="payload_base">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="10.0" />
+      <inertia ixx="0.2083333333" ixy="0" ixz="0"
+               iyy="0.375" iyz="0" izz="0.4333333333" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.6 0.4 0.3" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.6 0.4 0.3" />
+      </geometry>
+    </collision>
+  </link>
+</robot>
