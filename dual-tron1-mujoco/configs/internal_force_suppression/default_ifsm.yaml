@@ -1,0 +1,137 @@
+# Internal Force Suppression Module (IFSM) Configuration
+#
+# Default configuration for dual-robot cooperative transportation
+# with internal force suppression.
+#
+# References:
+#   - De Luca & Mattone (2005): Momentum observer parameters
+#   - Erhart & Hirche (2015): Internal force thresholds
+#   - Hogan (1985): Admittance parameters
+
+# Force Estimator Configuration
+force_estimator:
+  # Estimator type: "momentum_observer" (default) | "torque_based" (future)
+  estimator_type: "momentum_observer"
+
+  # Observer gain K (Hz)
+  # Higher = faster convergence but more sensitive to noise
+  # Typical range: 50-200 Hz
+  # Reference: De Luca (2005), Section IV
+  observer_gain: 100.0
+
+  # Low-pass filter cutoff frequency (Hz)
+  # Set to null to disable filtering
+  # Recommended: 10-30 Hz for real robots, null for simulation
+  cutoff_frequency: null
+
+  # End-effector frame name for Cartesian wrench computation
+  # This should match the frame name in your robot model
+  end_effector_frame: "hand"
+
+# Internal Force Analyzer Configuration
+force_analyzer:
+  # Maximum safe internal force magnitude (N)
+  # Above this threshold triggers "danger" status
+  # Typical: 30-100 N depending on robot/object
+  # Reference: Erhart & Hirche (2015), experimental validation
+  max_safe_internal_force: 50.0
+
+  # Warning threshold (N)
+  # Between warning and max triggers "warning" status
+  warning_threshold: 35.0
+
+  # Force decomposition method
+  # Options: "null_space_projection" (default)
+  decomposition_method: "null_space_projection"
+
+# Admittance Controller Configuration - Robot 1
+admittance_robot1:
+  # Desired inertia [M_x, M_y, M_z, M_rx, M_ry, M_rz]
+  # Units: [kg, kg, kg, kg⋅m², kg⋅m², kg⋅m²]
+  # Higher = slower response, more filtering
+  # Typical: 1-20 kg for translation, 0.1-2 kg⋅m² for rotation
+  # Reference: Hogan (1985), Section III
+  desired_inertia: [10.0, 10.0, 10.0, 1.0, 1.0, 1.0]
+
+  # Desired damping [B_x, B_y, B_z, B_rx, B_ry, B_rz]
+  # Units: [N⋅s/m, N⋅s/m, N⋅s/m, N⋅m⋅s/rad, N⋅m⋅s/rad, N⋅m⋅s/rad]
+  # Can also set to "critical" for critical damping: B = 2*sqrt(M*K)
+  # Typical: 20-100 N⋅s/m for translation
+  desired_damping: [50.0, 50.0, 50.0, 5.0, 5.0, 5.0]
+
+  # Desired stiffness [K_x, K_y, K_z, K_rx, K_ry, K_rz]
+  # Units: [N/m, N/m, N/m, N⋅m/rad, N⋅m/rad, N⋅m/rad]
+  # Higher = more resistance to displacement
+  # Typical: 50-500 N/m for translation
+  desired_stiffness: [100.0, 100.0, 100.0, 10.0, 10.0, 10.0]
+
+  # Residual gain (0-1)
+  # Scales the residual action before adding to base policy
+  # Lower = less interference with base policy
+  # Higher = more aggressive internal force suppression
+  # Recommended starting point: 0.2-0.4
+  residual_gain: 0.3
+
+  # Maximum residual action magnitude
+  # Safety limit to prevent large corrections
+  # Units depend on action space (typically normalized 0-1)
+  max_residual_magnitude: 0.1
+
+  # Enable adaptive gain scheduling
+  # Automatically adjusts residual_gain based on internal force
+  # true = more gain when internal force is high
+  enable_gain_scheduling: false
+
+  # Maximum admittance displacement (m, rad)
+  # Limits the integrated admittance position
+  max_admittance_displacement: 0.1
+
+  # Maximum admittance velocity (m/s, rad/s)
+  # Limits the admittance velocity
+  max_admittance_velocity: 0.5
+
+# Admittance Controller Configuration - Robot 2
+# Can be identical or different from robot 1
+admittance_robot2:
+  desired_inertia: [10.0, 10.0, 10.0, 1.0, 1.0, 1.0]
+  desired_damping: [50.0, 50.0, 50.0, 5.0, 5.0, 5.0]
+  desired_stiffness: [100.0, 100.0, 100.0, 10.0, 10.0, 10.0]
+  residual_gain: 0.3
+  max_residual_magnitude: 0.1
+  enable_gain_scheduling: false
+  max_admittance_displacement: 0.1
+  max_admittance_velocity: 0.5
+
+# Safety Monitor Configuration
+safety:
+  # Enable safety monitoring
+  enable: true
+
+  # Emergency stop threshold (N)
+  # If internal force exceeds this, trigger emergency stop
+  emergency_stop_threshold: 100.0
+
+  # Gradual stop threshold (N)
+  # If internal force exceeds this, gradually reduce velocity
+  gradual_stop_threshold: 70.0
+
+  # Maximum force rate of change (N/s)
+  # Large spikes may indicate collision or grasp failure
+  force_rate_limit: 200.0
+
+  # Enable emergency stop action
+  # If false, only issues warnings
+  enable_emergency_stop: true
+
+# System Configuration
+system:
+  # Control frequency (Hz)
+  # Should match your simulation/control loop frequency
+  control_frequency: 500
+
+  # Logging verbosity
+  # 0 = errors only, 1 = warnings, 2 = info, 3 = debug
+  log_level: 2
+
+  # Enable performance profiling
+  enable_profiling: false
