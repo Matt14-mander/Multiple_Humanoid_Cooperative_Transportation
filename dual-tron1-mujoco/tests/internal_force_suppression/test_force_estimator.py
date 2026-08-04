@@ -102,7 +102,9 @@ class TestGeneralizedMomentumObserver:
         # Compute dynamics
         data = simple_robot.createData()
         pin.computeAllTerms(simple_robot, data, q, v)
-        tau_measured = data.g + tau_ext_true
+        # At static equilibrium the actuator opposes the physical external
+        # torque: g = tau_measured + tau_ext_true.
+        tau_measured = data.g - tau_ext_true
 
         # Run observer
         dt = 0.001
