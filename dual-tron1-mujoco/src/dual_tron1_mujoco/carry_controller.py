@@ -200,9 +200,14 @@ class CooperativeCarryHoldController:
             grasp_matrix[3:, column + 3 : column + 6] = np.eye(3)
         return (np.linalg.pinv(grasp_matrix) @ payload_wrench).reshape(2, 6)
 
-    def update(self, data) -> None:
+    def update(self, data, arm_wrench_correction=None) -> None:
         payload_wrench = self._payload_wrench(data)
         arm_wrenches = self._share_wrench(data, payload_wrench)
+        if arm_wrench_correction is not None:
+            correction = np.asarray(arm_wrench_correction, dtype=float)
+            if correction.shape != (2, 6):
+                raise ValueError("arm_wrench_correction must have shape (2, 6)")
+            arm_wrenches = arm_wrenches + correction
         load_scale = (
             min(1.0, float(data.time) / self.load_ramp_s)
             if self.load_ramp_s > 0.0

@@ -73,6 +73,7 @@ def run(
     release_payload: bool = False,
     disable_payload_collision: bool = False,
     payload_mass_kg: float = None,
+    enable_ifsm: bool = False,
 ) -> None:
     config = load_config(config_path)
     if rebuild or payload_mass_kg is not None or not Path(model_path).exists():
@@ -107,6 +108,7 @@ def run(
     coordinator = None
     safety = None
     carry_controller = None
+    ifsm_controller = None
     if controller_mode == "hold":
         controllers = [
             JointHoldController(model, data, "r1_", config["control"]),
@@ -173,6 +175,18 @@ def run(
         )
     else:
         raise ValueError("Unknown controller mode: " + controller_mode)
+    if enable_ifsm:
+        if carry_controller is None:
+            raise ValueError(
+                "Internal-force suppression requires carry_hold or carry_balance mode"
+            )
+        from internal_force_suppression.config.ifsm_config import IFSMConfig
+
+        from .internal_force_controller import MujocoInternalForceController
+
+        ifsm_controller = MujocoInternalForceController(
+            model, IFSMConfig().to_dict()
+        )
     duration = (
         float(duration_s)
         if duration_s is not None
@@ -183,6 +197,11 @@ def run(
     realtime = bool(config["run"].get("realtime", True)) and not headless
 
     def step() -> None:
+        arm_wrench_correction = None
+        if ifsm_controller is not None:
+            arm_wrench_correction, _ = ifsm_controller.update(
+                data, float(model.opt.timestep)
+            )
         if controller_mode in {"policy", "carry_balance"}:
             for controller in controllers:
                 controller.update(
@@ -191,12 +210,12 @@ def run(
                     actuate_arms=True,
                 )
             if carry_controller is not None:
-                carry_controller.update(data)
+                carry_controller.update(data, arm_wrench_correction)
         else:
             for controller in controllers:
                 controller.update(data)
             if carry_controller is not None:
-                carry_controller.update(data)
+                carry_controller.update(data, arm_wrench_correction)
         mujoco.mj_step(model, data)
         if safety is not None:
             safety.check(data)
@@ -380,6 +399,16 @@ def run(
                 ),
             )
         )
+    if ifsm_controller is not None and ifsm_controller.last_force_info:
+        print(
+            "ifsm: updates={} internal_force={:.4f} internal_ratio={:.2%} "
+            "max_correction={:.4f}".format(
+                ifsm_controller.update_count,
+                ifsm_controller.last_force_info["internal_magnitude"],
+                ifsm_controller.last_force_info["internal_ratio"],
+                float(np.max(np.abs(ifsm_controller.last_correction_wrenches))),
+            )
+        )
 
 
 def main() -> None:
@@ -424,6 +453,11 @@ def main() -> None:
     parser.add_argument("--release-payload", action="store_true")
     parser.add_argument("--disable-payload-collision", action="store_true")
     parser.add_argument("--payload-mass", type=float)
+    parser.add_argument(
+        "--enable-ifsm",
+        action="store_true",
+        help="Enable MuJoCo internal-force estimation and admittance suppression",
+    )
     args = parser.parse_args()
     if args.forward_test:
         args.controller = "policy"
@@ -493,6 +527,7 @@ def main() -> None:
         release_payload=args.release_payload,
         disable_payload_collision=args.disable_payload_collision,
         payload_mass_kg=args.payload_mass,
+        enable_ifsm=args.enable_ifsm,
     )
 
 

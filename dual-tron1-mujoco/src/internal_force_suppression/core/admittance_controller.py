@@ -78,7 +78,7 @@ class ResidualAdmittanceController:
         5. Add residual to base action with gain scheduling
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], robot_index: int = 0):
         """
         Initialize residual admittance controller.
 
@@ -92,16 +92,20 @@ class ResidualAdmittanceController:
                 - enable_gain_scheduling: Use adaptive gain based on internal force
         """
         self.config = config
+        self.robot_index = int(robot_index)
+        if self.robot_index < 0:
+            raise ValueError("robot_index must be non-negative")
 
         # Parse admittance parameters
         M = np.array(config['desired_inertia'])
         K = np.array(config['desired_stiffness'])
 
         # Damping: use critical damping if specified
-        if config.get('desired_damping') == "critical":
+        damping_config = config.get('desired_damping')
+        if isinstance(damping_config, str) and damping_config == "critical":
             B = AdmittanceParameters.critical_damping(M, K)
         else:
-            B = np.array(config['desired_damping'])
+            B = np.array(damping_config)
 
         self.params = AdmittanceParameters(M=M, B=B, K=K)
 
@@ -190,21 +194,34 @@ class ResidualAdmittanceController:
         Returns:
             residual: Joint space residual action
         """
-        # Simple proportional-derivative mapping
+        # Simple proportional-derivative Cartesian residual.
         K_p = 1.0  # Position gain
         K_d = 0.1  # Velocity gain
-
-        # For joint space, we assume residual has same dimension as action
-        # This is a simplified version - in practice, use Jacobian transpose
         residual_cart = K_p * x_cart + K_d * v_cart
 
-        # TODO: If robot_state is provided, compute Jacobian and map properly
-        # J = compute_jacobian(robot_state)
-        # residual_joint = J.T @ residual_cart
+        if robot_state is None or 'jacobian' not in robot_state:
+            return residual_cart
 
-        # For now, return Cartesian residual
-        # (assumes downstream controller handles Cartesian commands)
-        return residual_cart
+        jacobian = np.asarray(robot_state['jacobian'], dtype=float)
+        if jacobian.ndim != 2 or jacobian.shape[0] != 6:
+            raise ValueError("robot_state['jacobian'] must have shape (6, n)")
+
+        residual_joint = np.linalg.pinv(jacobian) @ residual_cart
+        action_indices = robot_state.get('action_indices')
+        if action_indices is None:
+            return residual_joint
+
+        action_indices = np.asarray(action_indices, dtype=int)
+        if action_indices.shape != (residual_joint.size,):
+            raise ValueError(
+                "robot_state['action_indices'] must match Jacobian columns"
+            )
+        action_size = int(robot_state.get('action_size', action_indices.max() + 1))
+        if np.any(action_indices < 0) or np.any(action_indices >= action_size):
+            raise ValueError("robot_state['action_indices'] are out of range")
+        residual_action = np.zeros(action_size)
+        residual_action[action_indices] = residual_joint
+        return residual_action
 
     def compute_adaptive_gain(self, internal_force_magnitude: float) -> float:
         """
@@ -260,22 +277,29 @@ class ResidualAdmittanceController:
             corrected_action: Base action + residual
             diagnostics: Dict with diagnostic information
         """
-        # Extract internal force for this robot
-        # Assuming this is for robot 1; adjust index if needed
+        # Extract the internal wrench assigned to this controller's robot.
         per_robot = internal_force_info.get('per_robot', [])
         if per_robot:
-            F_internal = per_robot[0]['F_internal']  # [6] wrench
+            if self.robot_index >= len(per_robot):
+                raise IndexError("robot_index exceeds per_robot decomposition")
+            F_internal = per_robot[self.robot_index]['F_internal']
         else:
-            # Fallback: split total internal force
             F_internal_total = internal_force_info['F_internal']
             n_robots = len(F_internal_total) // 6
-            F_internal = F_internal_total[:6]  # First robot
+            if self.robot_index >= n_robots:
+                raise IndexError("robot_index exceeds F_internal decomposition")
+            start = 6 * self.robot_index
+            F_internal = F_internal_total[start:start + 6]
 
         # Compute admittance dynamics
         x_adm, v_adm, a_adm = self.compute_admittance_dynamics(F_internal, dt)
 
         # Map to joint space residual
-        residual_action = self.cartesian_to_joint_residual(x_adm, v_adm, robot_state)
+        mapping_state = dict(robot_state or {})
+        mapping_state.setdefault('action_size', np.asarray(base_action).size)
+        residual_action = self.cartesian_to_joint_residual(
+            x_adm, v_adm, mapping_state
+        )
 
         # Apply adaptive gain
         internal_mag = internal_force_info['internal_magnitude']
@@ -289,7 +313,13 @@ class ResidualAdmittanceController:
         if residual_mag > self.max_residual_mag:
             residual_action *= self.max_residual_mag / residual_mag
 
-        # Add to base action
+        base_action = np.asarray(base_action, dtype=float)
+        if residual_action.shape != base_action.shape:
+            raise ValueError(
+                "Residual action shape {} does not match base action shape {}; "
+                "provide robot_state['jacobian'] and action_indices for mapping"
+                .format(residual_action.shape, base_action.shape)
+            )
         corrected_action = base_action + residual_action
 
         # Diagnostics

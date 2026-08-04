@@ -8,11 +8,11 @@ import numpy as np
 from typing import Dict, Any, Optional, Tuple
 import time
 
-from ..core.force_estimator import ImplicitForceEstimator
-from ..core.internal_force_analyzer import InternalForceAnalyzer, ContactWrench
-from ..core.admittance_controller import ResidualAdmittanceController
-from ..utils.safety_monitor import SafetyMonitor
-from ..config.ifsm_config import IFSMConfig
+from .core.force_estimator import ImplicitForceEstimator
+from .core.internal_force_analyzer import InternalForceAnalyzer, ContactWrench
+from .core.admittance_controller import ResidualAdmittanceController
+from .utils.safety_monitor import SafetyMonitor
+from .config.ifsm_config import IFSMConfig
 
 
 class DualRobotCooperativeController:
@@ -73,10 +73,12 @@ class DualRobotCooperativeController:
 
         # Initialize admittance controllers
         self.admittance_controller_1 = ResidualAdmittanceController(
-            config=self.config['admittance_robot1']
+            config=self.config['admittance_robot1'],
+            robot_index=0,
         )
         self.admittance_controller_2 = ResidualAdmittanceController(
-            config=self.config['admittance_robot2']
+            config=self.config['admittance_robot2'],
+            robot_index=1,
         )
 
         # Initialize safety monitor
@@ -127,8 +129,8 @@ class DualRobotCooperativeController:
         base_action_1, base_action_2 = self.motion_policy.predict(observation)
 
         # 2. Estimate contact forces
-        robot1_state = observation['robot1_state']
-        robot2_state = observation['robot2_state']
+        robot1_state = dict(observation['robot1_state'])
+        robot2_state = dict(observation['robot2_state'])
 
         robot1_state['dt'] = dt
         robot2_state['dt'] = dt
@@ -255,7 +257,7 @@ class DualRobotCooperativeController:
         Args:
             config_updates: Dict of config updates (can be nested)
         """
-        from ..config.ifsm_config import merge_configs
+        from .config.ifsm_config import merge_configs
         self.config.config = merge_configs(self.config.config, config_updates)
 
         # Update components that support runtime updates

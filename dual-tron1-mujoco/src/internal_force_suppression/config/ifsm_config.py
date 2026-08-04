@@ -80,6 +80,12 @@ def get_default_config() -> Dict[str, Any]:
                 'control_frequency': 500,
                 'log_level': 2,
                 'enable_profiling': False
+            },
+            'mujoco_adapter': {
+                'residual_gain': 0.5,
+                'wrench_cutoff_frequency_hz': 20.0,
+                'max_correction_force_n': 5.0,
+                'max_correction_torque_nm': 1.0
             }
         }
 
