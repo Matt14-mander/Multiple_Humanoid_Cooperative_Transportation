@@ -17,6 +17,7 @@ from .commands import (
     VelocitySchedule,
 )
 from .model_loader import load_model
+from .mujoco_momentum_observer import MujocoDualArmMomentumObserver
 from .paths import (
     CARRY_BALANCE_CONFIG,
     CARRY_BALANCE_MODEL,
@@ -75,6 +76,7 @@ def run(
     payload_mass_kg: float = None,
     payload_com_offset_m=None,
     enable_ifsm: bool = False,
+    enable_momentum_observer: bool = False,
 ) -> None:
     config = load_config(config_path)
     if (
@@ -120,6 +122,7 @@ def run(
     safety = None
     carry_controller = None
     ifsm_controller = None
+    momentum_observer = None
     if controller_mode == "hold":
         controllers = [
             JointHoldController(model, data, "r1_", config["control"]),
@@ -198,6 +201,15 @@ def run(
         ifsm_controller = MujocoInternalForceController(
             model, IFSMConfig().to_dict()
         )
+    if enable_momentum_observer:
+        if unlock_bases:
+            raise ValueError(
+                "The current MuJoCo momentum-observer integration requires "
+                "fixed TRON bases"
+            )
+        momentum_observer = MujocoDualArmMomentumObserver(
+            model, config.get("momentum_observer", {})
+        )
     if carry_controller is not None:
         preflight = carry_controller.assess_static_capacity(data)
         print(
@@ -261,6 +273,10 @@ def run(
             if carry_controller is not None:
                 carry_controller.update(data, arm_wrench_correction)
         mujoco.mj_step(model, data)
+        if momentum_observer is not None:
+            momentum_observer.update(
+                data, "free_space" if release_payload else "carry"
+            )
         if safety is not None:
             safety.check(data)
         elif not np.all(np.isfinite(data.qpos)) or not np.all(
@@ -456,6 +472,62 @@ def run(
                 ),
             )
         )
+    if momentum_observer is not None:
+        observer_result = momentum_observer.summary()
+        if observer_result["sample_count"] > 0:
+            print(
+                "momentum_observer: samples={} force_rmse=({:.3f},{:.3f})N "
+                "moment_rmse=({:.3f},{:.3f})Nm joint_rmse=({:.3f},{:.3f})Nm "
+                "tool_mass=({:.4f},{:.4f})kg".format(
+                    observer_result["sample_count"],
+                    observer_result["force_rmse_n"][0],
+                    observer_result["force_rmse_n"][1],
+                    observer_result["moment_rmse_nm"][0],
+                    observer_result["moment_rmse_nm"][1],
+                    observer_result["joint_torque_rmse_nm"][0],
+                    observer_result["joint_torque_rmse_nm"][1],
+                    observer_result["tool_mass_kg"][0],
+                    observer_result["tool_mass_kg"][1],
+                )
+            )
+            print(
+                "observer_wrench_mean_robot_side: estimated_r1={} truth_r1={} "
+                "estimated_r2={} truth_r2={}".format(
+                    np.array2string(
+                        observer_result["estimated_wrench_mean"][0], precision=3
+                    ),
+                    np.array2string(
+                        observer_result["truth_wrench_mean"][0], precision=3
+                    ),
+                    np.array2string(
+                        observer_result["estimated_wrench_mean"][1], precision=3
+                    ),
+                    np.array2string(
+                        observer_result["truth_wrench_mean"][1], precision=3
+                    ),
+                )
+            )
+            print(
+                "observer_joint_torque_mean: estimated_r1={} truth_r1={} "
+                "estimated_r2={} truth_r2={}".format(
+                    np.array2string(
+                        observer_result["estimated_joint_torque_mean_nm"][0],
+                        precision=3,
+                    ),
+                    np.array2string(
+                        observer_result["truth_joint_torque_mean_nm"][0],
+                        precision=3,
+                    ),
+                    np.array2string(
+                        observer_result["estimated_joint_torque_mean_nm"][1],
+                        precision=3,
+                    ),
+                    np.array2string(
+                        observer_result["truth_joint_torque_mean_nm"][1],
+                        precision=3,
+                    ),
+                )
+            )
     if ifsm_controller is not None and ifsm_controller.last_force_info:
         print(
             "ifsm: updates={} internal_force={:.4f} internal_ratio={:.2%} "
@@ -521,6 +593,11 @@ def main() -> None:
         "--enable-ifsm",
         action="store_true",
         help="Enable MuJoCo internal-force estimation and admittance suppression",
+    )
+    parser.add_argument(
+        "--enable-momentum-observer",
+        action="store_true",
+        help="Run fixed-base AIRBOT momentum observers in shadow mode",
     )
     args = parser.parse_args()
     if args.forward_test:
@@ -593,6 +670,7 @@ def main() -> None:
         payload_mass_kg=args.payload_mass,
         payload_com_offset_m=args.payload_com,
         enable_ifsm=args.enable_ifsm,
+        enable_momentum_observer=args.enable_momentum_observer,
     )
 
 

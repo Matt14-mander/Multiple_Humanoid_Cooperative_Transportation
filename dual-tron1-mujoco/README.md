@@ -115,6 +115,31 @@ python -m dual_tron1_mujoco.airbot_observer_robustness --case unmodeled_tool_200
 python -m dual_tron1_mujoco.airbot_observer_robustness --case modeled_tool_200g_zero
 ```
 
+## Dual-robot MuJoCo momentum-observer integration
+
+The same generalized-momentum observer can run online for both AIRBOT arms in
+the fixed-base cooperative-carry scene. It reads only each arm's joint
+position, joint velocity and actuator torque. The generated MuJoCo gripper
+mass, COM and inertia are merged automatically into the terminal Pinocchio
+link. MuJoCo constraint forces are used only after estimation as simulation
+ground truth for RMSE reporting; they are never observer inputs.
+
+Run the fixed-base shadow comparison with:
+
+```powershell
+python -m dual_tron1_mujoco.run_sim `
+  --carry-hold-test `
+  --payload-mass 0.5 `
+  --duration 2 `
+  --headless `
+  --enable-momentum-observer
+```
+
+This first integration is deliberately shadow mode: its wrench estimate is
+reported but is not yet fed into the internal-force controller. The option is
+rejected for unlocked-base walking because floating-base dynamics, foot
+contact separation and IMU compensation are the next integration stage.
+
 ## Adaptive payload identification
 
 The object-level payload estimator identifies mass and body-frame center of
