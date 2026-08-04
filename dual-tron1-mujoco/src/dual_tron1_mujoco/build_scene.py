@@ -13,6 +13,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
+import numpy as np
+
 from .configuration import load_config
 from .paths import ARM_MESH_DIR, ARM_URDF, BASE_MESH_DIR, BASE_MJCF, GENERATED_MODEL
 
@@ -255,8 +257,18 @@ def _add_payload(worldbody: ET.Element, model_config: Dict[str, object]) -> None
     sx, sy, sz = [float(v) for v in model_config["payload_body_size_m"]]
     hx, hy, hz = [float(v) for v in model_config["handle_size_m"]]
     total_mass = float(model_config["payload_mass_kg"])
-    handle_mass = min(0.5, total_mass * 0.05)
-    body_mass = total_mass - 2.0 * handle_mass
+    com_offset = np.asarray(
+        model_config.get("payload_com_offset_m", [0.0, 0.0, 0.0]),
+        dtype=float,
+    )
+    if com_offset.shape != (3,):
+        raise ValueError("model.payload_com_offset_m must contain three values")
+    half_size = np.array([sx, sy, sz], dtype=float) / 2.0
+    if np.any(np.abs(com_offset) > half_size):
+        raise ValueError("payload COM offset must remain inside the payload body")
+    inertia = total_mass / 12.0 * np.array(
+        [sy * sy + sz * sz, sx * sx + sz * sz, sx * sx + sy * sy]
+    )
     payload = ET.SubElement(
         worldbody,
         "body",
@@ -269,12 +281,21 @@ def _add_payload(worldbody: ET.Element, model_config: Dict[str, object]) -> None
     ET.SubElement(payload, "freejoint", {"name": "payload_free"})
     ET.SubElement(
         payload,
+        "inertial",
+        {
+            "pos": "{} {} {}".format(*com_offset),
+            "mass": str(total_mass),
+            "diaginertia": "{} {} {}".format(*inertia),
+        },
+    )
+    ET.SubElement(
+        payload,
         "geom",
         {
             "name": "payload_collision",
             "type": "box",
             "size": f"{sx / 2} {sy / 2} {sz / 2}",
-            "mass": str(body_mass),
+            "mass": "0",
             "rgba": "0.25 0.45 0.75 1",
             "friction": "0.8 0.01 0.001",
         },
@@ -304,7 +325,7 @@ def _add_payload(worldbody: ET.Element, model_config: Dict[str, object]) -> None
                 "name": "payload_handle_" + name,
                 "type": "box",
                 "size": f"{hx / 2} {hy / 2} {hz / 2}",
-                "mass": str(handle_mass),
+                "mass": "0",
                 "rgba": "0.85 0.65 0.15 1",
                 "friction": "1.0 0.02 0.002",
             },
@@ -320,6 +341,7 @@ def build_scene(
     config_path: Path,
     output_path: Path,
     payload_mass_kg: float = None,
+    payload_com_offset_m: Optional[Iterable[float]] = None,
 ) -> Path:
     config = load_config(config_path)
     model_config = config["model"]
@@ -327,6 +349,11 @@ def build_scene(
         if payload_mass_kg <= 0.0:
             raise ValueError("payload_mass_kg must be positive")
         model_config["payload_mass_kg"] = float(payload_mass_kg)
+    if payload_com_offset_m is not None:
+        values = [float(value) for value in payload_com_offset_m]
+        if len(values) != 3:
+            raise ValueError("payload_com_offset_m must contain three values")
+        model_config["payload_com_offset_m"] = values
     if model_config.get("robot_type") != "WF_TRON1A":
         raise ValueError("The first Windows milestone supports WF_TRON1A only")
     if not BASE_MJCF.exists() or not ARM_URDF.exists():
@@ -473,9 +500,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=GENERATED_MODEL)
+    parser.add_argument("--payload-mass", type=float)
+    parser.add_argument("--payload-com", type=float, nargs=3, metavar=("X", "Y", "Z"))
     args = parser.parse_args()
     config_path = args.config if args.config is not None else GENERATED_MODEL.parents[2] / "configs" / "wf_dual.json"
-    print(build_scene(config_path, args.output))
+    print(
+        build_scene(
+            config_path,
+            args.output,
+            payload_mass_kg=args.payload_mass,
+            payload_com_offset_m=args.payload_com,
+        )
+    )
 
 
 if __name__ == "__main__":

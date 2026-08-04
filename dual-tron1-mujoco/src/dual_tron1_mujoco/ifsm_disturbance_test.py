@@ -11,6 +11,7 @@ import numpy as np
 
 from internal_force_suppression.config.ifsm_config import IFSMConfig
 
+from .build_scene import build_scene
 from .carry_controller import CooperativeCarryHoldController
 from .configuration import load_config
 from .control import JointHoldController
@@ -91,6 +92,14 @@ def run_case(
         raise ValueError("Unknown disturbance scenario: " + scenario)
     if measurement_start_s < disturbance_start_s:
         raise ValueError("measurement_start_s must not precede disturbance_start_s")
+
+    # CLI payload variants rebuild the shared generated XML.  Recreate the
+    # canonical baseline here so one demo run cannot contaminate this benchmark.
+    if (
+        Path(config_path).resolve() == Path(CARRY_HOLD_CONFIG).resolve()
+        and Path(model_path).resolve() == Path(CARRY_HOLD_MODEL).resolve()
+    ):
+        build_scene(CARRY_HOLD_CONFIG, CARRY_HOLD_MODEL)
 
     model = load_model(model_path)
     data = mujoco.MjData(model)

@@ -16,6 +16,61 @@ from typing import Dict, Optional, Any
 import pinocchio as pin
 
 
+FREE_SPACE = "free_space"
+GRASP = "grasp"
+CARRY = "carry"
+RELEASE = "release"
+CONTACT_PHASES = (FREE_SPACE, GRASP, CARRY, RELEASE)
+
+
+class ObserverBiasCompensator:
+    """Learn slow joint-residual bias only while external contact is absent.
+
+    The estimate is frozen during grasp and carry so a sustained payload force
+    cannot be absorbed as model bias.  Release explicitly re-opens learning.
+    """
+
+    def __init__(self, size: int, time_constant_s: float = 0.10):
+        if time_constant_s <= 0.0:
+            raise ValueError("bias time constant must be positive")
+        self.size = int(size)
+        self.time_constant_s = float(time_constant_s)
+        self.bias = np.zeros(self.size)
+        self.phase = FREE_SPACE
+        self.sample_count = 0
+
+    @property
+    def learning_enabled(self) -> bool:
+        return self.phase in {FREE_SPACE, RELEASE}
+
+    def reset(self) -> None:
+        self.bias.fill(0.0)
+        self.phase = FREE_SPACE
+        self.sample_count = 0
+
+    def set_phase(self, phase: str) -> None:
+        phase = str(phase).lower()
+        if phase not in CONTACT_PHASES:
+            raise ValueError("unknown observer contact phase: " + phase)
+        self.phase = phase
+
+    def compensate(
+        self, residual: np.ndarray, dt: float, phase: Optional[str] = None
+    ) -> np.ndarray:
+        value = np.asarray(residual, dtype=float)
+        if value.shape != (self.size,):
+            raise ValueError("observer residual has an unexpected shape")
+        if dt <= 0.0:
+            raise ValueError("observer timestep must be positive")
+        if phase is not None:
+            self.set_phase(phase)
+        if self.learning_enabled:
+            alpha = 1.0 - np.exp(-float(dt) / self.time_constant_s)
+            self.bias += alpha * (value - self.bias)
+            self.sample_count += 1
+        return value - self.bias
+
+
 class GeneralizedMomentumObserver:
     """
     Generalized Momentum Observer for external torque estimation.
@@ -44,7 +99,9 @@ class GeneralizedMomentumObserver:
     def __init__(self,
                  robot_model: pin.Model,
                  observer_gain: float = 100.0,
-                 cutoff_frequency: Optional[float] = None):
+                 cutoff_frequency: Optional[float] = None,
+                 momentum_matrix_scale: float = 1.0,
+                 bias_compensation_time_constant_s: Optional[float] = None):
         """
         Initialize momentum observer.
 
@@ -53,11 +110,18 @@ class GeneralizedMomentumObserver:
             observer_gain: Observer gain K (higher = faster convergence, more noise)
                           Typical range: 50-200 Hz
             cutoff_frequency: Optional low-pass filter cutoff (Hz)
+            momentum_matrix_scale: Scale applied only to the mass matrix used
+                in generalized momentum. This is primarily useful for
+                isolating mass-matrix errors in validation; it does not alter
+                gravity or Coriolis terms.
         """
+        if momentum_matrix_scale <= 0.0:
+            raise ValueError("momentum_matrix_scale must be positive")
         self.model = robot_model
         self.data = robot_model.createData()
         self.K = observer_gain
         self.cutoff_freq = cutoff_frequency
+        self.momentum_matrix_scale = momentum_matrix_scale
 
         # State
         self.nv = robot_model.nv
@@ -68,6 +132,14 @@ class GeneralizedMomentumObserver:
 
         # Low-pass filter state (if enabled)
         self.tau_ext_filtered = np.zeros(self.nv)
+        self.raw_tau_ext = np.zeros(self.nv)
+        self.bias_compensator = (
+            ObserverBiasCompensator(
+                self.nv, bias_compensation_time_constant_s
+            )
+            if bias_compensation_time_constant_s is not None
+            else None
+        )
 
     def reset(self):
         """Reset observer state."""
@@ -75,6 +147,9 @@ class GeneralizedMomentumObserver:
         self.p_0 = np.zeros(self.nv)
         self.momentum_integral = np.zeros(self.nv)
         self.tau_ext_filtered = np.zeros(self.nv)
+        self.raw_tau_ext = np.zeros(self.nv)
+        if self.bias_compensator is not None:
+            self.bias_compensator.reset()
         self.is_initialized = False
 
     def initialize(self, q: np.ndarray, v: np.ndarray):
@@ -87,7 +162,7 @@ class GeneralizedMomentumObserver:
         """
         # Compute initial momentum
         pin.computeAllTerms(self.model, self.data, q, v)
-        M = self.data.M
+        M = self.momentum_matrix_scale * self.data.M
         self.p_0 = M @ v
         self.momentum_integral = np.zeros(self.nv)
         self.is_initialized = True
@@ -96,7 +171,8 @@ class GeneralizedMomentumObserver:
                                  q: np.ndarray,
                                  v: np.ndarray,
                                  tau_measured: np.ndarray,
-                                 dt: float) -> np.ndarray:
+                                 dt: float,
+                                 contact_phase: Optional[str] = None) -> np.ndarray:
         """
         Estimate external joint torques.
 
@@ -117,22 +193,21 @@ class GeneralizedMomentumObserver:
         # This computes M, C, g terms
         pin.computeAllTerms(self.model, self.data, q, v)
 
-        M = self.data.M  # Mass matrix
+        M = self.momentum_matrix_scale * self.data.M  # Momentum matrix
         C = self.data.C  # Coriolis matrix
         g = self.data.g  # Gravity generalized torque
         beta = g - C.T @ v
 
-        # Integrate the observer residual. This produces the first-order
-        # response r_dot = K * (tau_ext - r).
-        self.momentum_integral += (tau_measured - beta - self.r) * dt
+        # From p_dot = tau_measured + tau_ext - beta, integrate the known
+        # model terms and feed the residual back with the sign required for
+        # r_dot = K * (tau_ext - r).
+        self.momentum_integral += (tau_measured - beta + self.r) * dt
 
         # Compute current momentum
         p = M @ v
 
         # Recover the external-torque residual from momentum balance.
-        self.r = self.K * (
-            self.momentum_integral - (p - self.p_0)
-        )
+        self.r = self.K * ((p - self.p_0) - self.momentum_integral)
         tau_ext = self.r.copy()
 
         # Optional low-pass filtering
@@ -141,7 +216,19 @@ class GeneralizedMomentumObserver:
             self.tau_ext_filtered = (1 - alpha) * self.tau_ext_filtered + alpha * tau_ext
             tau_ext = self.tau_ext_filtered
 
+        self.raw_tau_ext = tau_ext.copy()
+        if self.bias_compensator is not None:
+            tau_ext = self.bias_compensator.compensate(
+                tau_ext, dt, phase=contact_phase
+            )
+
         return tau_ext
+
+    @property
+    def estimated_bias(self) -> np.ndarray:
+        if self.bias_compensator is None:
+            return np.zeros(self.nv)
+        return self.bias_compensator.bias.copy()
 
     def joint_torque_to_cartesian_wrench(self,
                                         tau_ext: np.ndarray,
@@ -202,13 +289,19 @@ class ImplicitForceEstimator:
         estimator_type = config.get('estimator_type', 'momentum_observer')
         observer_gain = config.get('observer_gain', 100.0)
         cutoff_freq = config.get('cutoff_frequency', None)
+        bias_time_constant = (
+            config.get('bias_time_constant_s', 0.10)
+            if config.get('bias_compensation_enabled', False)
+            else None
+        )
         self.ee_frame = config.get('end_effector_frame', 'hand')
 
         if estimator_type == 'momentum_observer':
             self.estimator = GeneralizedMomentumObserver(
                 robot_model=robot_model,
                 observer_gain=observer_gain,
-                cutoff_frequency=cutoff_freq
+                cutoff_frequency=cutoff_freq,
+                bias_compensation_time_constant_s=bias_time_constant,
             )
         else:
             raise ValueError(f"Unknown estimator type: {estimator_type}")
@@ -216,6 +309,12 @@ class ImplicitForceEstimator:
     def reset(self):
         """Reset estimator state."""
         self.estimator.reset()
+
+    def set_contact_phase(self, phase: str) -> None:
+        """Switch bias learning according to the task contact state."""
+        if self.estimator.bias_compensator is None:
+            return
+        self.estimator.bias_compensator.set_phase(phase)
 
     def estimate_contact_wrench(self, robot_state: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         """
@@ -241,7 +340,13 @@ class ImplicitForceEstimator:
         dt = robot_state['dt']
 
         # Estimate joint space external torque
-        tau_ext = self.estimator.estimate_external_torque(q, v, tau, dt)
+        tau_ext = self.estimator.estimate_external_torque(
+            q,
+            v,
+            tau,
+            dt,
+            contact_phase=robot_state.get('contact_phase'),
+        )
 
         # Convert to Cartesian wrench
         wrench = self.estimator.joint_torque_to_cartesian_wrench(
@@ -252,5 +357,7 @@ class ImplicitForceEstimator:
             'wrench': wrench,
             'force': wrench[:3],
             'moment': wrench[3:],
-            'tau_ext': tau_ext
+            'tau_ext': tau_ext,
+            'tau_ext_raw': self.estimator.raw_tau_ext.copy(),
+            'tau_bias': self.estimator.estimated_bias,
         }

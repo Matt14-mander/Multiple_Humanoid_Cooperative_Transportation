@@ -14,12 +14,16 @@ dependencies = [
 
 [project.optional-dependencies]
 policy = ["onnxruntime>=1.16,<2"]
+ifsm = ["pin>=3.2,<4.1"]
 test = ["pytest>=7,<9"]
 
 [project.scripts]
 dual-tron1-build = "dual_tron1_mujoco.build_scene:main"
 dual-tron1-sim = "dual_tron1_mujoco.run_sim:main"
 dual-tron1-inspect-onnx = "dual_tron1_mujoco.onnx_policy:main"
+airbot-observer-validate = "dual_tron1_mujoco.airbot_observer_validation:main"
+airbot-observer-robustness = "dual_tron1_mujoco.airbot_observer_robustness:main"
+payload-identification-validate = "dual_tron1_mujoco.payload_identification_validation:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -30,4 +34,3 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-

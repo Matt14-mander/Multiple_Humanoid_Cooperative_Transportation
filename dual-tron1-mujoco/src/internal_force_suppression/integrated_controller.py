@@ -8,7 +8,7 @@ import numpy as np
 from typing import Dict, Any, Optional, Tuple
 import time
 
-from .core.force_estimator import ImplicitForceEstimator
+from .core.force_estimator import FREE_SPACE, ImplicitForceEstimator
 from .core.internal_force_analyzer import InternalForceAnalyzer, ContactWrench
 from .core.admittance_controller import ResidualAdmittanceController
 from .utils.safety_monitor import SafetyMonitor
@@ -90,6 +90,13 @@ class DualRobotCooperativeController:
         self.step_count = 0
         self.total_time = 0.0
         self.enable_profiling = self.config['system'].get('enable_profiling', False)
+        self.contact_phase = FREE_SPACE
+
+    def set_contact_phase(self, phase: str) -> None:
+        """Apply one shared grasp-state transition to both observers."""
+        self.force_estimator_1.set_contact_phase(phase)
+        self.force_estimator_2.set_contact_phase(phase)
+        self.contact_phase = phase
 
     def reset(self):
         """Reset all components."""
@@ -101,6 +108,8 @@ class DualRobotCooperativeController:
         self.force_analyzer.reset_history()
         self.step_count = 0
         self.total_time = 0.0
+        self.contact_phase = FREE_SPACE
+        self.set_contact_phase(FREE_SPACE)
 
     def step(self,
             observation: Dict[str, Any],
@@ -134,6 +143,11 @@ class DualRobotCooperativeController:
 
         robot1_state['dt'] = dt
         robot2_state['dt'] = dt
+        self.set_contact_phase(
+            observation.get('contact_phase', self.contact_phase)
+        )
+        robot1_state['contact_phase'] = self.contact_phase
+        robot2_state['contact_phase'] = self.contact_phase
 
         wrench_1_dict = self.force_estimator_1.estimate_contact_wrench(robot1_state)
         wrench_2_dict = self.force_estimator_2.estimate_contact_wrench(robot2_state)
@@ -198,6 +212,7 @@ class DualRobotCooperativeController:
         # 6. Compile diagnostics
         diagnostics = {
             'safety_triggered': False,
+            'contact_phase': self.contact_phase,
             'internal_force': {
                 'magnitude': force_info['internal_magnitude'],
                 'ratio': force_info['internal_ratio'],

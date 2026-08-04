@@ -41,6 +41,8 @@ def get_default_config() -> Dict[str, Any]:
             'force_estimator': {
                 'estimator_type': 'momentum_observer',
                 'observer_gain': 100.0,
+                'bias_compensation_enabled': True,
+                'bias_time_constant_s': 0.10,
                 'cutoff_frequency': None,
                 'end_effector_frame': 'hand'
             },

@@ -65,6 +65,74 @@ dual-tron1-sim --headless --duration 0.1
 dual-tron1-sim --duration 5
 ```
 
+## AIRBOT sensorless force-observer validation
+
+The first sensorless-estimation stage uses a fixed-base AIRBOT arm. The
+validation model is generated from the same deployed `robot_with_arm.urdf`
+chain for both dynamics engines: MuJoCo supplies the applied-wrench truth,
+while the Pinocchio generalized-momentum observer receives only joint
+position, velocity and actuator torque.
+
+Run the zero-force, static-wrench and moving-wrench comparisons with:
+
+```powershell
+python -m dual_tron1_mujoco.airbot_observer_validation
+python -m dual_tron1_mujoco.airbot_observer_validation --json
+```
+
+The MuJoCo truth is used only for error reporting. It is not passed into the
+observer. Regression coverage is in `tests/test_airbot_observer_validation.py`.
+
+Run the repeatable robustness matrix with:
+
+```powershell
+python -m dual_tron1_mujoco.airbot_observer_robustness
+python -m dual_tron1_mujoco.airbot_observer_robustness --json
+python -m dual_tron1_mujoco.airbot_observer_robustness --case model-errors
+```
+
+It covers encoder/velocity noise, torque calibration error, separately
+controlled mass-matrix, link-mass, center-of-mass and gravity mismatch,
+combined spatial-inertia mismatch,
+unmodeled friction and tool mass, drivetrain loss, delayed and jittered
+samples, multiple poses, a near-singular pose, a 40 ms impulse, and a combined
+adverse case. `PASS` and `FAIL` use provisional stage-one limits; known failing
+cases remain in regression coverage so model calibration and tool/gravity
+compensation work cannot accidentally be mistaken for completed robustness.
+
+Two static false-force sources now have explicit compensation paths. Fixed
+gripper/tool mass, COM and box inertia are merged into the terminal Pinocchio
+link model. Remaining slow joint-residual bias is learned only in
+`free_space`/`release` and frozen in `grasp`/`carry`. The task state is supplied
+as `robot_state["contact_phase"]` or through
+`ImplicitForceEstimator.set_contact_phase()`. Compare the original and fixed
+cases with:
+
+```powershell
+python -m dual_tron1_mujoco.airbot_observer_robustness --case mass_10pct_low_zero
+python -m dual_tron1_mujoco.airbot_observer_robustness --case mass_10pct_low_zero_compensated
+python -m dual_tron1_mujoco.airbot_observer_robustness --case unmodeled_tool_200g_zero
+python -m dual_tron1_mujoco.airbot_observer_robustness --case modeled_tool_200g_zero
+```
+
+## Adaptive payload identification
+
+The object-level payload estimator identifies mass and body-frame center of
+mass from a short multi-pose calibration sequence, checks observability, and
+then freezes the accepted parameters during transport. The carry controller
+uses the frozen estimate for gravity compensation and asymmetric load
+allocation without adding the carried object to either arm model.
+
+Run the deterministic centered-dumbbell and offset-box validation with:
+
+```powershell
+python -m dual_tron1_mujoco.payload_identification_validation
+python -m dual_tron1_mujoco.payload_identification_validation --json
+```
+
+See `docs/payload_identification_design.md` for the model, state machine,
+limits and repeatable payload-generation command.
+
 ## Dual-robot forward test
 
 The mobility test uses `configs/wf_dual_forward.json`: both robots are

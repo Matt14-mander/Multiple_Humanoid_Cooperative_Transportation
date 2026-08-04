@@ -4,7 +4,10 @@ import numpy as np
 import pytest
 
 from dual_tron1_mujoco.build_scene import build_scene
-from dual_tron1_mujoco.carry_controller import CooperativeCarryHoldController
+from dual_tron1_mujoco.carry_controller import (
+    CooperativeCarryHoldController,
+    _orientation_error,
+)
 from dual_tron1_mujoco.configuration import load_config
 from dual_tron1_mujoco.model_loader import load_model
 from dual_tron1_mujoco.paths import CARRY_HOLD_CONFIG
@@ -59,6 +62,69 @@ def test_arm_commands_are_finite_and_within_limits(tmp_path: Path):
     assert controller.update_count == 1
     assert np.all(controller.saturation_fractions >= 0.0)
     assert np.all(controller.saturation_fractions <= 1.0)
+
+
+def test_model_truth_initializes_payload_com(tmp_path: Path):
+    output = build_scene(
+        CARRY_HOLD_CONFIG,
+        tmp_path / "offset.xml",
+        payload_mass_kg=2.0,
+        payload_com_offset_m=(0.08, -0.05, 0.03),
+    )
+    model = load_model(output)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    config = load_config(CARRY_HOLD_CONFIG)
+    controller_config = dict(config["control"])
+    controller_config.update(config["carry_impedance"])
+    controller = CooperativeCarryHoldController(model, data, controller_config)
+
+    assert controller.payload_parameter_source == "model_truth"
+    assert np.allclose(
+        controller.estimated_payload_com_body, [0.08, -0.05, 0.03]
+    )
+
+
+def test_heavy_offset_payload_is_rejected_before_falling(tmp_path: Path):
+    output = build_scene(
+        CARRY_HOLD_CONFIG,
+        tmp_path / "heavy_offset.xml",
+        payload_mass_kg=6.0,
+        payload_com_offset_m=(0.08, -0.05, 0.03),
+    )
+    model = load_model(output)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    config = load_config(CARRY_HOLD_CONFIG)
+    controller_config = dict(config["control"])
+    controller_config.update(config["carry_impedance"])
+    controller = CooperativeCarryHoldController(model, data, controller_config)
+
+    report = controller.assess_static_capacity(data)
+
+    assert not report["feasible"]
+    assert report["vertical_support_ratio"] < 0.95
+    assert np.all(
+        np.abs(report["predicted_arm_torques"][:, :3]) <= 18.0 + 1e-6
+    )
+    assert np.all(
+        np.abs(report["predicted_arm_torques"][:, 3:]) <= 3.0 + 1e-6
+    )
+
+
+def test_orientation_error_remains_large_near_half_turn():
+    angle = np.deg2rad(179.0)
+    desired = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, np.cos(angle), -np.sin(angle)],
+            [0.0, np.sin(angle), np.cos(angle)],
+        ]
+    )
+
+    error = _orientation_error(np.eye(3), desired)
+
+    assert np.linalg.norm(error) == pytest.approx(angle, rel=1e-5)
 
 
 def test_mujoco_ifsm_reconstructs_and_suppresses_internal_wrench(tmp_path: Path):

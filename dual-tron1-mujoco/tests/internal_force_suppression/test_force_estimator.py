@@ -13,8 +13,11 @@ src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 from internal_force_suppression.core.force_estimator import (
+    CARRY,
+    FREE_SPACE,
     GeneralizedMomentumObserver,
-    ImplicitForceEstimator
+    ImplicitForceEstimator,
+    ObserverBiasCompensator,
 )
 
 
@@ -114,6 +117,34 @@ class TestGeneralizedMomentumObserver:
         # Should be close to true value
         error = np.linalg.norm(tau_ext_est - tau_ext_true)
         assert error < 0.5
+
+
+class TestObserverBiasCompensator:
+    def test_free_space_learning_and_carry_freeze(self):
+        compensator = ObserverBiasCompensator(2, time_constant_s=0.05)
+        model_bias = np.array([0.8, -0.3])
+
+        for _ in range(500):
+            corrected = compensator.compensate(
+                model_bias, 0.001, phase=FREE_SPACE
+            )
+
+        assert np.linalg.norm(corrected) < 1e-3
+        frozen_bias = compensator.bias.copy()
+        contact_torque = np.array([1.5, 0.4])
+        for _ in range(500):
+            corrected = compensator.compensate(
+                model_bias + contact_torque, 0.001, phase=CARRY
+            )
+
+        assert np.allclose(compensator.bias, frozen_bias)
+        assert np.allclose(corrected, contact_torque, atol=1e-3)
+
+    def test_invalid_phase_is_rejected(self):
+        compensator = ObserverBiasCompensator(2)
+
+        with pytest.raises(ValueError):
+            compensator.set_phase("unknown")
 
 
 class TestImplicitForceEstimator:

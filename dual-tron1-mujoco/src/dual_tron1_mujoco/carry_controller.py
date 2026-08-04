@@ -1,4 +1,4 @@
-"""Object-level impedance and symmetric load sharing for static carrying."""
+"""Object-level impedance and adaptive quadratic load sharing."""
 
 from typing import Dict
 
@@ -26,18 +26,69 @@ def _skew(vector: np.ndarray) -> np.ndarray:
 
 
 def _orientation_error(current: np.ndarray, desired: np.ndarray) -> np.ndarray:
-    return 0.5 * sum(
-        (np.cross(current[:, axis], desired[:, axis]) for axis in range(3)),
-        start=np.zeros(3),
+    """Return the world-frame SO(3) logarithm from current to desired.
+
+    The former cross-product approximation tends back to zero near 180 degrees,
+    exactly when the payload most needs a recovery moment.
+    """
+    relative = desired @ current.T
+    cosine = np.clip((np.trace(relative) - 1.0) * 0.5, -1.0, 1.0)
+    angle = math.acos(float(cosine))
+    vee = np.array(
+        [
+            relative[2, 1] - relative[1, 2],
+            relative[0, 2] - relative[2, 0],
+            relative[1, 0] - relative[0, 1],
+        ]
     )
+    if angle < 1e-7:
+        return 0.5 * vee
+    if math.pi - angle < 1e-5:
+        eigenvalues, eigenvectors = np.linalg.eigh(relative)
+        axis = eigenvectors[:, int(np.argmax(eigenvalues))]
+        return angle * axis / max(np.linalg.norm(axis), 1e-12)
+    return angle * vee / (2.0 * math.sin(angle))
+
+
+def _solve_inequality_qp(
+    quadratic: np.ndarray,
+    linear_rhs: np.ndarray,
+    inequalities: np.ndarray,
+    bounds: np.ndarray,
+    maximum_iterations: int = 80,
+) -> np.ndarray:
+    """Small active-set solver for min 0.5*x'Q*x-rhs'x, C*x<=d."""
+    active = []
+    solution = np.linalg.solve(quadratic, linear_rhs)
+    for _ in range(maximum_iterations):
+        violation = inequalities @ solution - bounds
+        candidate = int(np.argmax(violation))
+        if violation[candidate] <= 1e-8:
+            return solution
+        if candidate not in active:
+            active.append(candidate)
+        active_matrix = inequalities[active]
+        kkt = np.block(
+            [
+                [quadratic, active_matrix.T],
+                [active_matrix, np.zeros((len(active), len(active)))],
+            ]
+        )
+        rhs = np.concatenate((linear_rhs, bounds[active]))
+        result = np.linalg.lstsq(kkt, rhs, rcond=None)[0]
+        solution = result[: quadratic.shape[0]]
+        multipliers = result[quadratic.shape[0] :]
+        if multipliers.size and np.min(multipliers) < -1e-8:
+            del active[int(np.argmin(multipliers))]
+    return solution
 
 
 class CooperativeCarryHoldController:
-    """Hold one payload using object impedance and minimum-norm load sharing.
+    """Hold one payload using object impedance and quadratic load sharing.
 
     The commanded end-effector wrenches sum to one desired payload wrench.
-    No null-space/internal grasp wrench is deliberately introduced in this
-    first milestone.
+    Payload mass and body-frame COM can be updated from the independent
+    payload estimator; the controller never folds them into either arm model.
     """
 
     def __init__(self, model, data, config: Dict[str, object]):
@@ -50,6 +101,26 @@ class CooperativeCarryHoldController:
         if self.payload_id < 0:
             raise KeyError("MuJoCo body not found: payload_body")
         self.payload_mass = float(model.body_subtreemass[self.payload_id])
+        self.payload_parameter_source = str(
+            config.get("payload_parameter_source", "model_truth")
+        )
+        if self.payload_parameter_source == "model_truth":
+            self.estimated_payload_mass = self.payload_mass
+            self.estimated_payload_com_body = model.body_ipos[
+                self.payload_id
+            ].copy()
+        elif self.payload_parameter_source == "external_estimator":
+            self.estimated_payload_mass = float(
+                config.get("payload_prior_mass_kg", self.payload_mass)
+            )
+            self.estimated_payload_com_body = np.asarray(
+                config.get("payload_prior_com_m", [0.0, 0.0, 0.0]),
+                dtype=float,
+            )
+        else:
+            raise ValueError(
+                "payload_parameter_source must be model_truth or external_estimator"
+            )
         self.payload_position_ref = data.xpos[self.payload_id].copy()
         self.payload_rotation_ref = data.xmat[self.payload_id].reshape(3, 3).copy()
         self.reference_frame = str(config.get("reference_frame", "world"))
@@ -80,6 +151,31 @@ class CooperativeCarryHoldController:
         self.torque_rate_limit = float(config.get("torque_rate_limit_nm_s", 500.0))
         self.max_wrench_force = float(config.get("max_wrench_force_n", 40.0))
         self.max_wrench_torque = float(config.get("max_wrench_torque_nm", 5.0))
+        self.wrench_tracking_weight = float(
+            config.get("wrench_tracking_weight", 1e5)
+        )
+        self.feasibility_tolerance = float(
+            config.get("wrench_feasibility_tolerance", 0.03)
+        )
+        force_weights = np.asarray(
+            config.get("load_sharing_force_weights", [1.0, 1.0]), dtype=float
+        )
+        if force_weights.shape != (2,) or np.any(force_weights <= 0.0):
+            raise ValueError(
+                "carry_impedance.load_sharing_force_weights must contain "
+                "two positive values"
+            )
+        moment_weight = float(config.get("load_sharing_moment_weight", 100.0))
+        if moment_weight <= 0.0:
+            raise ValueError(
+                "carry_impedance.load_sharing_moment_weight must be positive"
+            )
+        self.load_sharing_weights = np.concatenate(
+            [
+                np.concatenate((np.full(3, weight), np.full(3, moment_weight)))
+                for weight in force_weights
+            ]
+        )
         self.arms = []
         for prefix in ("r1_", "r2_"):
             body_id = mujoco.mj_name2id(
@@ -107,11 +203,45 @@ class CooperativeCarryHoldController:
                 }
             )
         self.last_payload_wrench = np.zeros(6)
+        self.last_payload_com_world = data.xpos[self.payload_id].copy()
         self.last_arm_wrenches = np.zeros((2, 6))
         self.last_arm_torques = np.zeros((2, 6))
+        self.last_predicted_arm_torques = np.zeros((2, 6))
+        self.last_achieved_payload_wrench = np.zeros(6)
+        self.last_allocation_residual = np.zeros(6)
+        self.last_vertical_support_ratio = 0.0
+        self.last_allocation_feasible = True
         self.peak_abs_arm_torques = np.zeros((2, 6))
         self.saturation_steps = np.zeros((2, 6), dtype=np.int64)
         self.update_count = 0
+        self._first_update = True
+
+    def set_payload_estimate(
+        self, mass_kg: float, com_body_m: np.ndarray
+    ) -> None:
+        """Apply one accepted object-level estimate to load compensation."""
+        mass = float(mass_kg)
+        com = np.asarray(com_body_m, dtype=float)
+        if mass <= 0.0:
+            raise ValueError("estimated payload mass must be positive")
+        if com.shape != (3,) or not np.all(np.isfinite(com)):
+            raise ValueError("estimated payload COM must contain three values")
+        self.estimated_payload_mass = mass
+        self.estimated_payload_com_body = com.copy()
+
+    def assess_static_capacity(self, data) -> Dict[str, object]:
+        """Evaluate the initial gravity-support request without actuating motors."""
+        payload_wrench = self._payload_wrench(data)
+        torque_maps, base_torques = self._arm_torque_maps(data)
+        self._share_wrench(data, payload_wrench, torque_maps, base_torques)
+        return {
+            "feasible": self.last_allocation_feasible,
+            "desired_wrench": payload_wrench.copy(),
+            "achieved_wrench": self.last_achieved_payload_wrench.copy(),
+            "residual": self.last_allocation_residual.copy(),
+            "vertical_support_ratio": self.last_vertical_support_ratio,
+            "predicted_arm_torques": self.last_predicted_arm_torques.copy(),
+        }
 
     def _average_base_yaw(self, data) -> float:
         yaws = [
@@ -179,7 +309,7 @@ class CooperativeCarryHoldController:
         force = (
             self.translation_stiffness * position_error
             + self.translation_damping * (linear_velocity_ref - linear_velocity)
-            - self.payload_mass * np.asarray(self.model.opt.gravity)
+            - self.estimated_payload_mass * np.asarray(self.model.opt.gravity)
         )
         moment = (
             self.rotation_stiffness * rotation_error
@@ -189,20 +319,153 @@ class CooperativeCarryHoldController:
         moment = np.clip(moment, -self.max_wrench_torque, self.max_wrench_torque)
         return np.concatenate((force, moment))
 
-    def _share_wrench(self, data, payload_wrench: np.ndarray) -> np.ndarray:
+    def _arm_torque_maps(self, data):
+        maps = []
+        base_torques = []
+        jacobian_position = np.zeros((3, self.model.nv))
+        jacobian_rotation = np.zeros((3, self.model.nv))
+        for arm in self.arms:
+            jacobian_position.fill(0.0)
+            jacobian_rotation.fill(0.0)
+            mujoco.mj_jacBody(
+                self.model,
+                data,
+                jacobian_position,
+                jacobian_rotation,
+                arm["body_id"],
+            )
+            dofs = np.array([joint.dof_adr for joint in arm["joints"]])
+            maps.append(
+                np.hstack(
+                    (
+                        jacobian_position[:, dofs].T,
+                        jacobian_rotation[:, dofs].T,
+                    )
+                )
+            )
+            if self.actuation_mode == "additive_policy":
+                base_torques.append(
+                    np.array([float(data.ctrl[a]) for a in arm["actuators"]])
+                )
+            else:
+                posture = np.array(
+                    [
+                        self.joint_posture_kp
+                        * (
+                            arm["q_ref"][number]
+                            - float(data.qpos[joint.qpos_adr])
+                        )
+                        - self.joint_damping * float(data.qvel[joint.dof_adr])
+                        for number, joint in enumerate(arm["joints"])
+                    ]
+                )
+                base_torques.append(data.qfrc_bias[dofs] + posture)
+        return np.asarray(maps), np.asarray(base_torques)
+
+    def _share_wrench(
+        self,
+        data,
+        payload_wrench: np.ndarray,
+        torque_maps=None,
+        base_torques=None,
+    ) -> np.ndarray:
         payload_position = data.xpos[self.payload_id]
+        payload_rotation = data.xmat[self.payload_id].reshape(3, 3)
+        payload_com = (
+            payload_position
+            + payload_rotation @ self.estimated_payload_com_body
+        )
         grasp_matrix = np.zeros((6, 12))
         for arm_number, arm in enumerate(self.arms):
-            offset = data.xpos[arm["body_id"]] - payload_position
+            offset = data.xpos[arm["body_id"]] - payload_com
             column = arm_number * 6
             grasp_matrix[:3, column : column + 3] = np.eye(3)
             grasp_matrix[3:, column : column + 3] = _skew(offset)
             grasp_matrix[3:, column + 3 : column + 6] = np.eye(3)
-        return (np.linalg.pinv(grasp_matrix) @ payload_wrench).reshape(2, 6)
+        inverse_weights = 1.0 / self.load_sharing_weights
+        weighted_dual = (
+            grasp_matrix
+            @ (inverse_weights[:, None] * grasp_matrix.T)
+        )
+        solution = inverse_weights * (
+            grasp_matrix.T @ np.linalg.lstsq(
+                weighted_dual, payload_wrench, rcond=None
+            )[0]
+        )
+        if torque_maps is None or base_torques is None:
+            torque_maps, base_torques = self._arm_torque_maps(data)
+        predicted = np.asarray(
+            [
+                base + mapping @ solution[number * 6 : number * 6 + 6]
+                for number, (mapping, base) in enumerate(
+                    zip(torque_maps, base_torques)
+                )
+            ]
+        )
+        within_limits = all(
+            np.all(np.abs(torque) <= arm["limits"] + 1e-8)
+            for torque, arm in zip(predicted, self.arms)
+        )
+        if not within_limits:
+            torque_matrix = np.zeros((12, 12))
+            limits = np.zeros(12)
+            base = base_torques.reshape(-1)
+            for number, (arm, mapping) in enumerate(zip(self.arms, torque_maps)):
+                rows = slice(number * 6, number * 6 + 6)
+                torque_matrix[rows, rows] = mapping
+                limits[rows] = arm["limits"]
+            inequalities = np.vstack((torque_matrix, -torque_matrix))
+            inequality_bounds = np.concatenate((limits - base, limits + base))
+            quadratic = np.diag(self.load_sharing_weights) + (
+                self.wrench_tracking_weight * grasp_matrix.T @ grasp_matrix
+            )
+            linear_rhs = (
+                self.wrench_tracking_weight * grasp_matrix.T @ payload_wrench
+            )
+            solution = _solve_inequality_qp(
+                quadratic,
+                linear_rhs,
+                inequalities,
+                inequality_bounds,
+            )
+            predicted = np.asarray(
+                [
+                    base_torques[number]
+                    + torque_maps[number]
+                    @ solution[number * 6 : number * 6 + 6]
+                    for number in range(2)
+                ]
+            )
+        achieved = grasp_matrix @ solution
+        residual = achieved - payload_wrench
+        desired_vertical = abs(float(payload_wrench[2]))
+        self.last_achieved_payload_wrench = achieved
+        self.last_allocation_residual = residual
+        self.last_vertical_support_ratio = (
+            float(achieved[2] / payload_wrench[2])
+            if desired_vertical > 1e-9
+            else 1.0
+        )
+        relative_residual = np.linalg.norm(residual) / max(
+            np.linalg.norm(payload_wrench), 1.0
+        )
+        self.last_allocation_feasible = bool(
+            relative_residual <= self.feasibility_tolerance
+            and all(
+                np.all(np.abs(torque) <= arm["limits"] + 1e-6)
+                for torque, arm in zip(predicted, self.arms)
+            )
+        )
+        self.last_predicted_arm_torques = predicted
+        self.last_payload_com_world = payload_com
+        return solution.reshape(2, 6)
 
     def update(self, data, arm_wrench_correction=None) -> None:
         payload_wrench = self._payload_wrench(data)
-        arm_wrenches = self._share_wrench(data, payload_wrench)
+        torque_maps, base_torques = self._arm_torque_maps(data)
+        arm_wrenches = self._share_wrench(
+            data, payload_wrench, torque_maps, base_torques
+        )
         if arm_wrench_correction is not None:
             correction = np.asarray(arm_wrench_correction, dtype=float)
             if correction.shape != (2, 6):
@@ -216,45 +479,13 @@ class CooperativeCarryHoldController:
         applied_arm_wrenches = arm_wrenches * load_scale
         timestep = float(self.model.opt.timestep)
         max_delta = self.torque_rate_limit * timestep
-        jacobian_position = np.zeros((3, self.model.nv))
-        jacobian_rotation = np.zeros((3, self.model.nv))
-
         for arm_number, (arm, wrench) in enumerate(
             zip(self.arms, applied_arm_wrenches)
         ):
-            jacobian_position.fill(0.0)
-            jacobian_rotation.fill(0.0)
-            mujoco.mj_jacBody(
-                self.model,
-                data,
-                jacobian_position,
-                jacobian_rotation,
-                arm["body_id"],
+            commanded = base_torques[arm_number] + (
+                torque_maps[arm_number] @ wrench
             )
-            generalized_torque = (
-                jacobian_position.T @ wrench[:3]
-                + jacobian_rotation.T @ wrench[3:]
-            )
-            commanded = np.zeros(6)
-            for joint_number, (joint, actuator) in enumerate(
-                zip(arm["joints"], arm["actuators"])
-            ):
-                if self.actuation_mode == "additive_policy":
-                    commanded[joint_number] = (
-                        float(data.ctrl[actuator])
-                        + generalized_torque[joint.dof_adr]
-                    )
-                else:
-                    q = float(data.qpos[joint.qpos_adr])
-                    dq = float(data.qvel[joint.dof_adr])
-                    commanded[joint_number] = (
-                        generalized_torque[joint.dof_adr]
-                        + float(data.qfrc_bias[joint.dof_adr])
-                        + self.joint_posture_kp
-                        * (arm["q_ref"][joint_number] - q)
-                        - self.joint_damping * dq
-                    )
-            if self.actuation_mode == "absolute":
+            if self.actuation_mode == "absolute" and not self._first_update:
                 commanded = np.clip(
                     commanded,
                     arm["previous_torque"] - max_delta,
@@ -275,6 +506,7 @@ class CooperativeCarryHoldController:
         self.last_payload_wrench = payload_wrench
         self.last_arm_wrenches = applied_arm_wrenches
         self.update_count += 1
+        self._first_update = False
 
     @property
     def saturation_fractions(self) -> np.ndarray:

@@ -73,11 +73,22 @@ def run(
     release_payload: bool = False,
     disable_payload_collision: bool = False,
     payload_mass_kg: float = None,
+    payload_com_offset_m=None,
     enable_ifsm: bool = False,
 ) -> None:
     config = load_config(config_path)
-    if rebuild or payload_mass_kg is not None or not Path(model_path).exists():
-        build_scene(config_path, model_path, payload_mass_kg=payload_mass_kg)
+    if (
+        rebuild
+        or payload_mass_kg is not None
+        or payload_com_offset_m is not None
+        or not Path(model_path).exists()
+    ):
+        build_scene(
+            config_path,
+            model_path,
+            payload_mass_kg=payload_mass_kg,
+            payload_com_offset_m=payload_com_offset_m,
+        )
 
     model = load_model(model_path)
     data = mujoco.MjData(model)
@@ -187,6 +198,39 @@ def run(
         ifsm_controller = MujocoInternalForceController(
             model, IFSMConfig().to_dict()
         )
+    if carry_controller is not None:
+        preflight = carry_controller.assess_static_capacity(data)
+        print(
+            "carry_preflight: {} desired_fz={:.3f}N achieved_fz={:.3f}N "
+            "support_ratio={:.3f} force_residual={:.3f}N "
+            "moment_residual={:.3f}Nm predicted_peak=({:.3f},{:.3f})Nm".format(
+                "PASS" if preflight["feasible"] else "FAIL",
+                preflight["desired_wrench"][2],
+                preflight["achieved_wrench"][2],
+                preflight["vertical_support_ratio"],
+                np.linalg.norm(preflight["residual"][:3]),
+                np.linalg.norm(preflight["residual"][3:]),
+                np.max(np.abs(preflight["predicted_arm_torques"][0])),
+                np.max(np.abs(preflight["predicted_arm_torques"][1])),
+            ),
+            flush=True,
+        )
+        if (
+            not preflight["feasible"]
+            and bool(
+                config["carry_impedance"].get(
+                    "abort_on_infeasible_payload", False
+                )
+            )
+        ):
+            raise RuntimeError(
+                "Static payload support is infeasible: only {:.1%} of the "
+                "vertical wrench is achievable at the current pose and joint-"
+                "torque limits. Change the arm pose, transmission limits, grasp "
+                "geometry, or payload before simulation.".format(
+                    preflight["vertical_support_ratio"]
+                )
+            )
     duration = (
         float(duration_s)
         if duration_s is not None
@@ -354,17 +398,30 @@ def run(
         )
         max_saturation = float(np.max(carry_controller.saturation_fractions))
         print(
-            "carry_control: payload_mass={:.3f}kg desired_fz={:.3f}N "
+            "carry_control: payload_mass={:.3f}kg estimate=({:.3f}kg,{}) "
+            "source={} desired_fz={:.3f}N achieved_fz={:.3f}N "
             "arm_fz=({:.3f},{:.3f})N payload_dz={:.4f}m "
-            "max_tilt={:.4f}rad arm_peak_torque=({:.3f},{:.3f})Nm".format(
+            "max_tilt={:.4f}rad arm_peak_torque=({:.3f},{:.3f})Nm "
+            "allocation={} support_ratio={:.3f} residual={:.3f}".format(
                 carry_controller.payload_mass,
+                carry_controller.estimated_payload_mass,
+                np.array2string(
+                    carry_controller.estimated_payload_com_body, precision=3
+                ),
+                carry_controller.payload_parameter_source,
                 carry_controller.last_payload_wrench[2],
+                carry_controller.last_achieved_payload_wrench[2],
                 carry_controller.last_arm_wrenches[0, 2],
                 carry_controller.last_arm_wrenches[1, 2],
                 last[3] - first[3],
                 max_tilt,
                 max(row[19] for row in recorder.rows),
                 max(row[20] for row in recorder.rows),
+                "feasible"
+                if carry_controller.last_allocation_feasible
+                else "infeasible",
+                carry_controller.last_vertical_support_ratio,
+                np.linalg.norm(carry_controller.last_allocation_residual),
             )
         )
         print(
@@ -454,6 +511,13 @@ def main() -> None:
     parser.add_argument("--disable-payload-collision", action="store_true")
     parser.add_argument("--payload-mass", type=float)
     parser.add_argument(
+        "--payload-com",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        help="Payload COM offset in payload-body coordinates (m)",
+    )
+    parser.add_argument(
         "--enable-ifsm",
         action="store_true",
         help="Enable MuJoCo internal-force estimation and admittance suppression",
@@ -527,6 +591,7 @@ def main() -> None:
         release_payload=args.release_payload,
         disable_payload_collision=args.disable_payload_collision,
         payload_mass_kg=args.payload_mass,
+        payload_com_offset_m=args.payload_com,
         enable_ifsm=args.enable_ifsm,
     )
 

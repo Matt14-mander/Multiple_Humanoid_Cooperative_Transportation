@@ -18,6 +18,9 @@ force_estimator:
   # Typical range: 50-200 Hz
   # Reference: De Luca (2005), Section IV
   observer_gain: 100.0
+  # Learn slow model bias only in FREE_SPACE/RELEASE; freeze in GRASP/CARRY.
+  bias_compensation_enabled: true
+  bias_time_constant_s: 0.10
 
   # Low-pass filter cutoff frequency (Hz)
   # Set to null to disable filtering
