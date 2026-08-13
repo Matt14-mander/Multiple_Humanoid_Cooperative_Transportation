@@ -1,0 +1,44 @@
+{
+  "model": {
+    "robot_type": "WFYG_TRON2A",
+    "timestep": 0.001,
+    "robot_1_pose": [-0.30, -0.35, 0.75, 0.0],
+    "robot_2_pose": [-0.30, 0.35, 0.75, 0.0],
+    "payload_pose": [-0.052435, 0.00118, 1.247736, 0.0],
+    "payload_mass_kg": 0.5,
+    "payload_com_offset_m": [0.0, 0.0, 0.0],
+    "payload_body_size_m": [0.42, 0.24, 0.18],
+    "handle_center_y_m": 0.35,
+    "handle_size_m": [0.05, 0.12, 0.05],
+    "fixed_bases": true,
+    "grasp_mode": "soft_weld",
+    "initial_joint_positions": {
+      "arm1_Joint": 0.0,
+      "arm2_Joint": 0.0,
+      "arm3_Joint": 0.0,
+      "arm4_Joint": 0.0,
+      "arm5_Joint": 0.0,
+      "arm6_Joint": 0.0,
+      "gripper1_Joint": 0.025,
+      "gripper2_Joint": -0.025
+    }
+  },
+  "control": {
+    "leg_kp": 60.0,
+    "leg_kd": 3.0,
+    "wheel_kd": 0.8,
+    "arm_kp": 80.0,
+    "arm_kd": 3.0,
+    "gripper_kp": 80.0,
+    "gripper_kd": 2.0,
+    "leg_torque_limit": 120.0,
+    "wheel_torque_limit": 22.0,
+    "arm_torque_limit": 80.0,
+    "gripper_force_limit": 10.0
+  },
+  "run": {
+    "duration_s": 5.0,
+    "realtime": true,
+    "record_csv": "runs/latest.csv"
+  }
+}

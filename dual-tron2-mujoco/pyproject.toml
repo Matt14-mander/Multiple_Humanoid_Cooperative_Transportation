@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dual-tron2-mujoco"
+version = "0.1.0"
+description = "Windows-native dual WFYG_TRON2A cooperative-carry MuJoCo simulation"
+requires-python = ">=3.10"
+dependencies = ["mujoco>=3.2.3,<3.3", "numpy>=1.23,<2"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+dual-tron2-build = "dual_tron2_mujoco.build_scene:main"
+dual-tron2-sim = "dual_tron2_mujoco.run_sim:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
