@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "single-tron2-chip"
+version = "0.1.0"
+description = "Single-WFYG_TRON2A CHIP hindsight-perturbation research scaffold"
+requires-python = ">=3.10"
+dependencies = ["mujoco>=3.2.3,<3.3", "numpy>=1.23,<2"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+train = ["gymnasium>=0.29", "torch>=2.1"]
+plot = ["matplotlib>=3.7"]
+
+[project.scripts]
+tron2-chip-build = "tron2_chip.build_scene:main"
+tron2-chip-sanity = "tron2_chip.run_sanity:main"
+tron2-chip-plot = "tron2_chip.plot_csv:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

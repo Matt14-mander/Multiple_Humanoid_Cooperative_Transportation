@@ -1,0 +1,51 @@
+{
+  "model": {
+    "robot_type": "WFYG_TRON2A",
+    "timestep": 0.001,
+    "base_position": [0.0, 0.0, 0.752],
+    "fixed_base": true,
+    "initial_joint_positions": {
+      "arm1_Joint": 0.0,
+      "arm2_Joint": 0.75,
+      "arm3_Joint": -1.25,
+      "arm4_Joint": 0.0,
+      "arm5_Joint": 0.45,
+      "arm6_Joint": 0.0,
+      "gripper1_Joint": 0.025,
+      "gripper2_Joint": -0.025
+    }
+  },
+  "control": {
+    "leg_kp": 60.0,
+    "leg_kd": 3.0,
+    "wheel_kd": 0.8,
+    "arm_kp": 6.0,
+    "arm_kd": 1.5,
+    "wrist_kp": 2.0,
+    "wrist_kd": 0.6,
+    "gripper_kp": 80.0,
+    "gripper_kd": 2.0,
+    "leg_torque_limit": 120.0,
+    "wheel_torque_limit": 22.0,
+    "arm_torque_limit": 60.0,
+    "wrist_torque_limit": 20.0,
+    "gripper_force_limit": 10.0,
+    "cartesian_default_stiffness_n_per_m": [500.0, 500.0, 500.0],
+    "cartesian_min_stiffness_n_per_m": 50.0,
+    "cartesian_max_stiffness_n_per_m": 1000.0,
+    "cartesian_damping_ns_per_m": [45.0, 45.0, 45.0],
+    "cartesian_force_limit_n": 80.0,
+    "gravity_compensation": "gravity_only"
+  },
+  "chip": {
+    "compliance_m_per_n": [0.002, 0.0, 0.0],
+    "force_world_n": [10.0, 0.0, 0.0],
+    "pulse_start_s": 0.5,
+    "pulse_duration_s": 0.5,
+    "history_steps": 10
+  },
+  "run": {
+    "duration_s": 1.5,
+    "record_csv": "runs/arm_sanity_latest.csv"
+  }
+}
