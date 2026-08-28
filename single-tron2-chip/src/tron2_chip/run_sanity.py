@@ -12,7 +12,7 @@ import numpy as np
 from .build_scene import build_scene
 from .configuration import load_config
 from .control import AnalyticGoalController
-from .hindsight import hindsight_goal
+from .hindsight import compliance_matrix, hindsight_goal
 from .model_index import ModelIndex
 from .model_loader import load_model
 from .paths import DEFAULT_CONFIG, GENERATED_MODEL, PROJECT_ROOT
@@ -28,7 +28,7 @@ def _initialize(model, data, config):
 
 def run(config_path=DEFAULT_CONFIG, model_path=GENERATED_MODEL, headless=False,
         duration_s=None, rebuild=False, compliance=None, force=None,
-        record_path=None):
+        record_path=None, goal_mode="hindsight", quiet=False):
     config = load_config(config_path)
     if rebuild or not Path(model_path).exists():
         build_scene(config_path, model_path)
@@ -47,10 +47,15 @@ def run(config_path=DEFAULT_CONFIG, model_path=GENERATED_MODEL, headless=False,
     ee_id = controller.ee_body_id
     reference = data.xpos[ee_id].copy()
     rows = []
+    if goal_mode not in {"hindsight", "deployment"}:
+        raise ValueError("goal_mode must be hindsight or deployment")
 
     def step():
         applied_force = pulse.at(float(data.time))
-        actor_goal = hindsight_goal(reference, applied_force, compliance)
+        actor_goal = (
+            hindsight_goal(reference, applied_force, compliance)
+            if goal_mode == "hindsight" else reference
+        )
         apply_body_force(data, ee_id, applied_force)
         controller.update_cartesian_reference(data, actor_goal, compliance)
         max_control_fraction = controller.apply(data)
@@ -86,28 +91,36 @@ def run(config_path=DEFAULT_CONFIG, model_path=GENERATED_MODEL, headless=False,
         ])
         writer.writerows(rows)
 
-    expected_shift = hindsight_goal(reference, np.asarray(force), compliance) - reference
+    expected_goal_shift = (
+        hindsight_goal(reference, np.asarray(force), compliance) - reference
+        if goal_mode == "hindsight" else np.zeros(3)
+    )
+    expected_response = compliance_matrix(compliance) @ np.asarray(force, dtype=float)
     displacement = data.xpos[ee_id].copy() - reference
     position_samples = np.asarray([row[1:4] for row in rows])
     peak_ee_offset = float(np.max(np.linalg.norm(position_samples - reference, axis=1)))
-    print("completed: mode=chip_formula_sanity time={:.3f}s nq={} nv={} nu={}".format(data.time, model.nq, model.nv, model.nu))
-    print("hindsight: force_N={} C_m_per_N={} goal_shift_m={}".format(
-        np.array2string(np.asarray(force), precision=4),
-        np.array2string(np.asarray(compliance), precision=4),
-        np.array2string(expected_shift, precision=5),
-    ))
-    print("motion: final_ee_displacement_m={} max_abs_ctrl={:.3f} csv={}".format(
-        np.array2string(displacement, precision=5),
-        max(row[-2] for row in rows), output.resolve(),
-    ))
-    print("control: peak_limit_usage={:.2f}%".format(100.0 * max(row[-1] for row in rows)))
-    print("response: peak_ee_offset={:.6f}m".format(peak_ee_offset))
-    print("note: analytic Cartesian impedance is a wiring surrogate; PPO CHIP policy is not trained yet")
+    if not quiet:
+        print("completed: mode={} time={:.3f}s nq={} nv={} nu={}".format(goal_mode, data.time, model.nq, model.nv, model.nu))
+        print("command: force_N={} C_m_per_N={} actor_goal_shift_m={} expected_response_m={}".format(
+            np.array2string(np.asarray(force), precision=4),
+            np.array2string(np.asarray(compliance), precision=4),
+            np.array2string(expected_goal_shift, precision=5),
+            np.array2string(expected_response, precision=5),
+        ))
+        print("motion: final_ee_displacement_m={} max_abs_ctrl={:.3f} csv={}".format(
+            np.array2string(displacement, precision=5),
+            max(row[-2] for row in rows), output.resolve(),
+        ))
+        print("control: peak_limit_usage={:.2f}%".format(100.0 * max(row[-1] for row in rows)))
+        print("response: peak_ee_offset={:.6f}m".format(peak_ee_offset))
+        print("note: analytic Cartesian impedance is a wiring surrogate; PPO CHIP policy is not trained yet")
     return {
         "model": model,
         "data": data,
         "reference": reference,
-        "expected_goal_shift": expected_shift,
+        "goal_mode": goal_mode,
+        "expected_goal_shift": expected_goal_shift,
+        "expected_response": expected_response,
         "final_displacement": displacement,
         "peak_control_fraction": max(row[-1] for row in rows),
         "peak_ee_offset": peak_ee_offset,

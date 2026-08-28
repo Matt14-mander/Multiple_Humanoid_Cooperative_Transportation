@@ -79,14 +79,14 @@ def plot_rollout(csv_path=DEFAULT_CSV, output_path=None, axis="auto",
 
     figure, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True, constrained_layout=True)
     figure.suptitle(
-        "TRON2 CHIP sanity diagnostics — {} axis, peak force {:.2f} N".format(
+        "TRON2 CHIP rollout diagnostics — {} axis, peak force {:.2f} N".format(
             selected_axis.upper(), float(np.max(force_norm))
         )
     )
 
     axes[0].plot(time_s, ee, label="actual end-effector", linewidth=1.8)
     axes[0].plot(time_s, reference, label="original goal", linewidth=1.4, linestyle="--")
-    axes[0].plot(time_s, actor_goal, label="hindsight actor goal", linewidth=1.4, linestyle=":")
+    axes[0].plot(time_s, actor_goal, label="actor goal", linewidth=1.4, linestyle=":")
     axes[0].set_ylabel("Position {} [m]".format(selected_axis))
     axes[0].set_title("End-effector and tracking goals")
     axes[0].legend(loc="best", ncols=3)
@@ -98,7 +98,7 @@ def plot_rollout(csv_path=DEFAULT_CSV, output_path=None, axis="auto",
     axes[1].legend(loc="best", ncols=3)
 
     axes[2].plot(time_s, actual_offset * 1000.0, label="actual minus original", linewidth=1.8)
-    axes[2].plot(time_s, hindsight_offset * 1000.0, label="hindsight minus original", linewidth=1.5, linestyle="--")
+    axes[2].plot(time_s, hindsight_offset * 1000.0, label="actor goal minus original", linewidth=1.5, linestyle="--")
     axes[2].axhline(0.0, color="0.45", linewidth=0.8)
     axes[2].set_ylabel("Offset [mm]")
     axes[2].set_title("Compliance response on selected axis")

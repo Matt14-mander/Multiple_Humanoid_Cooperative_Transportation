@@ -12,9 +12,16 @@ dual-tron1-mujoco/.pytest_tmp/
 dual-tron1-mujoco/.pytest_tmp*/
 dual-tron1-mujoco/.pytest_cache/
 dual-tron1-mujoco/runs/
+single-tron2-chip/.pytest-tmp*/
+single-tron2-chip/.pytest-*/
+single-tron2-chip/.pytest_cache/
+single-tron2-chip/runs/
+single-tron2-chip/artifacts/
+single-tron2-chip/logs/
 
 # Generated MJCF files contain machine-specific absolute mesh paths
 dual-tron1-mujoco/models/generated/
+single-tron2-chip/models/generated/
 
 # Local development note with broken/legacy encoding
 dual-tron1-mujoco/7-23.txt

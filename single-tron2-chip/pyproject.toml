@@ -10,14 +10,17 @@ requires-python = ">=3.10"
 dependencies = ["mujoco>=3.2.3,<3.3", "numpy>=1.23,<2"]
 
 [project.optional-dependencies]
-test = ["pytest>=7"]
+test = ["pytest>=7", "matplotlib>=3.7"]
 train = ["gymnasium>=0.29", "torch>=2.1"]
 plot = ["matplotlib>=3.7"]
+deployment = ["onnxruntime>=1.17"]
 
 [project.scripts]
 tron2-chip-build = "tron2_chip.build_scene:main"
 tron2-chip-sanity = "tron2_chip.run_sanity:main"
 tron2-chip-plot = "tron2_chip.plot_csv:main"
+tron2-chip-deploy = "tron2_chip.run_deployment:main"
+tron2-chip-sweep = "tron2_chip.evaluation.compliance_sweep:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -65,9 +65,10 @@ class AnalyticGoalController:
             q = float(data.qpos[joint.qpos_adr])
             dq = float(data.qvel[joint.dof_adr])
             kp, kd, limit = self._gains(name)
-            torque = feedforward[joint.dof_adr] + kp * (self.q_ref[number] - q) - kd * dq
             if name in ARM_JOINTS:
-                torque += task_torque[joint.dof_adr]
+                torque = feedforward[joint.dof_adr] + task_torque[joint.dof_adr]
+            else:
+                torque = feedforward[joint.dof_adr] + kp * (self.q_ref[number] - q) - kd * dq
             data.ctrl[actuator] = np.clip(torque, -limit, limit)
             max_fraction = max(max_fraction, abs(float(data.ctrl[actuator])) / limit)
         return max_fraction
@@ -84,8 +85,22 @@ class AnalyticGoalController:
         force_norm = float(np.linalg.norm(force))
         if force_norm > force_limit:
             force *= force_limit / force_norm
+        jacobian = jacp[:, self.arm_dofs]
+        posture = np.zeros(len(ARM_JOINTS))
+        for local_index, name in enumerate(ARM_JOINTS):
+            joint_index = JOINTS.index(name)
+            joint = self.joints[joint_index]
+            kp, kd, _ = self._gains(name)
+            posture[local_index] = (
+                kp * (self.q_ref[joint_index] - data.qpos[joint.qpos_adr])
+                - kd * data.qvel[joint.dof_adr]
+            )
+        damping = 1e-4
+        nullspace = np.eye(len(ARM_JOINTS)) - jacobian.T @ np.linalg.solve(
+            jacobian @ jacobian.T + damping * np.eye(3), jacobian
+        )
         torque = np.zeros(self.model.nv)
-        torque[self.arm_dofs] = jacp[:, self.arm_dofs].T @ force
+        torque[self.arm_dofs] = jacobian.T @ force + nullspace @ posture
         return torque
 
     def _feedforward(self, data):

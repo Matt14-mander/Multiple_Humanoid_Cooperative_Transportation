@@ -50,6 +50,32 @@ Interactive viewer:
 python -m tron2_chip.run_sanity --rebuild
 ```
 
+Deployment-mode compliance test (the actor goal is not shifted by force):
+
+```powershell
+python -m tron2_chip.run_deployment `
+  --compliance 0.002 0 0 `
+  --force 10 0 0 `
+  --headless `
+  --rebuild
+```
+
+In deployment mode the analytic oracle should yield approximately
+`C*f = 0.02 m`, whereas the training sanity mode stays near the original goal.
+
+Run a repeatable force/compliance sweep:
+
+```powershell
+python -m tron2_chip.evaluation.compliance_sweep `
+  --compliances 0.001 0.002 0.004 `
+  --forces 2 5 10 `
+  --axes x `
+  --output-dir runs/deployment_sweep
+```
+
+The per-case rollouts and `summary.csv` contain measured compliance, relative
+error, peak displacement, recovery time and control-limit usage.
+
 Plot the recorded rollout as a four-panel diagnostic figure:
 
 ```powershell
@@ -90,3 +116,16 @@ The default pulse produces the expected training-observation shift
 3. Give the critic privileged access to the ground-truth perturbation force.
 4. Train PPO on fixed-base reach motions and compare stiff, random-force and CHIP ablations.
 5. Release the base weld and add the hybrid wheel/leg/arm whole-body action adapter.
+
+## Cross-platform hand-off
+
+`tron2_chip.core` defines the versioned `PolicySpec`, history-based observation
+builder, normalization and action scaling. `tron2_chip.deployment` contains a
+backend-independent policy runtime, optional ONNX Runtime backend, normalized
+action safety filter and the future robot-interface protocol. These modules do
+not depend on MuJoCo or Isaac Lab.
+
+`tron2_chip.backends.isaaclab` currently contains the validated task contract
+and batched CHIP tensor terms. The Ubuntu training entry point deliberately
+stops until the WFYG_TRON2A USD articulation and Isaac Lab managers have been
+registered; it does not claim that PPO training is already available.
