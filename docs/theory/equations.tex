@@ -1,0 +1,225 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=25mm]{geometry}
+\usepackage{amsmath,amssymb,bm,mathtools}
+
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\skewm}[1]{[#1]_{\times}}
+\newcommand{\pinv}{^{+}}
+
+\begin{document}
+\section*{Reusable equations for TRON--AIRBOT cooperative manipulation}
+
+\subsection*{Generalized momentum observer}
+\begin{align}
+\vect M(\vect q)\dot{\vect v}
++\vect C(\vect q,\vect v)\vect v+\vect g(\vect q)
+&=\vect\tau+\vect\tau_{ext}, \tag{OBS-01}\\
+\vect\tau_{ext}&=\vect J_e^T\vect h_e, \tag{OBS-02}\\
+\vect p&=\vect M(\vect q)\vect v, \tag{OBS-03}\\
+\dot{\vect p}&=\vect\tau+\vect\tau_{ext}-\vect\beta,
+&\vect\beta&=\vect g-\vect C^T\vect v, \tag{OBS-04}\\
+\vect z(t)&=\int_0^t(\vect\tau-\vect\beta+\vect r)\,d\xi, \tag{OBS-05}\\
+\vect r&=\vect K_O[(\vect p-\vect p_0)-\vect z], \tag{OBS-06}\\
+\dot{\vect r}&=\vect K_O(\vect\tau_{ext}-\vect r). \tag{OBS-07}
+\end{align}
+
+\subsection*{Bias compensation and wrench reconstruction}
+\begin{align}
+\alpha_b&=1-e^{-\Delta t/T_b}, \tag{BIAS-03}\\
+\hat{\vect b}_k&=\hat{\vect b}_{k-1}
++\alpha_b(\bar{\vect r}_k-\hat{\vect b}_{k-1}), \tag{BIAS-03b}\\
+\hat{\vect\tau}_{ext,k}&=\bar{\vect r}_k-\hat{\vect b}_k, \tag{BIAS-04}\\
+\hat{\vect h}_e&=
+(\vect J_e\vect J_e^T+\lambda\vect I)^{-1}
+\vect J_e\hat{\vect\tau}_{ext}. \tag{WRE-03}
+\end{align}
+
+\subsection*{Grasp map and internal wrench}
+\begin{align}
+\vect G_i&=
+\begin{bmatrix}\vect I&\vect0\\\skewm{\vect r_i}&\vect I\end{bmatrix},
+&\vect G&=[\vect G_1\ \vect G_2], \tag{GRASP-02}\\
+\vect w_o&=\vect G\vect h, \tag{GRASP-03}\\
+\vect h_{eff}&=\vect G\pinv\vect w_o,
+&\vect h_{int}&=\vect h-\vect h_{eff}, \tag{INT-01}\\
+\vect G\vect h_{int}&=\vect0. \tag{INT-02}
+\end{align}
+
+\subsection*{Virtual-linkage internal-force coordinates}
+\begin{align}
+\begin{bmatrix}\vect f_r\\\vect\mu_r\end{bmatrix}
+&=\underbrace{\begin{bmatrix}
+\vect I&\cdots&\vect I\\
+\skewm{\vect r_1}&\cdots&\skewm{\vect r_n}
+\end{bmatrix}}_{\vect G_f}\vect f, \tag{VL-02}\\
+\vect f&=\vect B_v\vect t+\vect f_e,
+&\vect G_f\vect B_v&=\vect0, \tag{VL-03}\\
+\hat{\vect t}&=\vect B_v\pinv\vect f, \tag{VL-04}\\
+\vect e_{12}&=\frac{\vect p_2-\vect p_1}
+{\lVert\vect p_2-\vect p_1\rVert},
+&\vect B_{12}&=\begin{bmatrix}\vect e_{12}\\-\vect e_{12}\end{bmatrix}, \tag{VL-05}\\
+t_{12}&=\frac12\vect e_{12}^T(\vect f_1-\vect f_2), \tag{VL-06}\\
+t_{12}^{*}&=k_t(d_0-d)-d_t\dot d. \tag{VL-07}
+\end{align}
+For rigid 6D grasps, the complete internal-wrench dimension is
+\begin{align}
+\dim\ker(\vect G)&=6(n-1), \tag{VL-09}\\
+\vect N_G&=\vect I-\vect G\pinv\vect G, \tag{VL-11a}\\
+\vect B_{VL}&=\operatorname{orth}(\vect N_G\vect B_{raw}),
+&\vect G\vect B_{VL}&=\vect0, \tag{VL-11b}\\
+\vect\eta_{VL}&=\vect B_{VL}\pinv\vect h_{int}. \tag{VL-12}
+\end{align}
+
+\subsection*{Object impedance and load allocation}
+\begin{align}
+\vect f_o^*&=\vect K_p(\vect x_o^*-\vect x_o)
++\vect D_p(\dot{\vect x}_o^*-\dot{\vect x}_o)-\hat m_o\vect g, \tag{LOAD-01}\\
+\vect h^*&=\vect W^{-1}\vect G^T
+(\vect G\vect W^{-1}\vect G^T)\pinv\vect w_o^*. \tag{LOAD-03}
+\end{align}
+
+\subsection*{Payload mass and center of mass}
+\begin{align}
+\vect\theta_o&=[m,mc_x,mc_y,mc_z]^T, \tag{PAY-01}\\
+\vect u&=\vect a_o-\vect g, \tag{PAY-02}\\
+\vect w_o&=
+\underbrace{\begin{bmatrix}
+\vect u&\vect0_{3\times3}\\
+\vect0_{3\times1}&-\skewm{\vect u}\vect R_{WB}
+\end{bmatrix}}_{\vect Y_o}\vect\theta_o. \tag{PAY-04}
+\end{align}
+
+\subsection*{CHIP-style hindsight compliance}
+\begin{align}
+\vect g_{hind}&=\vect g_{ref}-\vect C_f\vect f_{ext}, \tag{CHIP-01}\\
+\vect\tau&=\vect g(\vect q)
++\vect J^T[\vect K_x(\vect g-\vect x)-\vect D_x\dot{\vect x}]
++\vect N_J\vect\tau_{posture}, \tag{CHIP-04}\\
+\vect K_x&\approx\vect C_f^{-1}, \tag{CHIP-05}\\
+\vect N_J&=\vect I-\vect J^T
+(\vect J\vect J^T+\lambda_J\vect I)^{-1}\vect J. \tag{CHIP-06}
+\end{align}
+
+\clearpage
+\section*{Object impedance: derivation and scope}
+\noindent Reading note: star2dust, \emph{Impedance control in cooperative
+manipulation} (2020-08-17). Equations below are re-derived in the project
+convention. They are not a claim of implemented inertia shaping.
+
+\subsection*{Translational target dynamics}
+For $\vect e_x=\vect x-\vect x_d$ and positive-definite, constant gains:
+\begin{align}
+\vect M_d\ddot{\vect e}_x+\vect D_d\dot{\vect e}_x
++\vect K_d\vect e_x&=\vect f_{ext}, \tag{IMP-01}\\
+\vect e_{x,ss}&=\vect K_d^{-1}\vect f_{ext},
+&\vect C_f&=\vect K_d^{-1}, \tag{IMP-02}\\
+\omega_n&=\sqrt{k_d/m_d},
+&\zeta&=\frac{d_d}{2\sqrt{m_d k_d}}. \tag{IMP-03}
+\end{align}
+At a fixed reference, the ideal energy balance is
+\begin{equation}
+\begin{split}
+V&=\tfrac12\dot{\vect e}_x^T\vect M_d\dot{\vect e}_x
++\tfrac12\vect e_x^T\vect K_d\vect e_x,\\
+\dot V&=\dot{\vect e}_x^T\vect f_{ext}
+-\dot{\vect e}_x^T\vect D_d\dot{\vect e}_x.
+\end{split}\tag{IMP-04}
+\end{equation}
+
+\subsection*{Object-level wrench command}
+World-frame twist is $\vect\nu_o=[\vect v_c^T,\vect\omega^T]^T$;
+the reference point is the center of mass.
+\begin{equation}
+\begin{split}
+\vect M_o\dot{\vect\nu}_o+\vect b_o&=\vect w_{ext}+\vect G\vect h,\\
+\vect M_o&=\operatorname{diag}(m_o\vect I_3,\vect I_W),\\
+\vect b_o&=\begin{bmatrix}-m_o\vect g\\
+\vect\omega\times(\vect I_W\vect\omega)\end{bmatrix},\quad
+\vect I_W=\vect R_{WB}\vect I_B\vect R_{WB}^T.
+\end{split}\tag{IMP-05}
+\end{equation}
+The following linear pose-error form requires translation or consistent local
+small-angle coordinates, not raw Euler-angle derivatives:
+\begin{equation}
+\vect a_{imp}=\vect a_{ref}+\vect M_d^{-1}
+(\vect w_{ext}-\vect D_d\vect e_\nu-\vect K_d\vect e_o).
+\tag{IMP-06}
+\end{equation}
+\begin{equation}
+\begin{split}
+\vect w_{cmd}={}&\vect b_o+\vect M_o\vect a_{ref}
+-\vect M_o\vect M_d^{-1}(\vect D_d\vect e_\nu+\vect K_d\vect e_o)\\
+&+(\vect M_o\vect M_d^{-1}-\vect I_6)\vect w_{ext}.
+\end{split}\tag{IMP-07}
+\end{equation}
+\begin{equation}
+\vect h_{cmd}=\vect G\pinv\vect w_{cmd}+\vect B_{VL}\vect\eta^*,
+\qquad\vect G\vect B_{VL}=\vect0.\tag{IMP-08}
+\end{equation}
+\noindent Exact wrench realization requires a feasible request and adequate
+grasp-map rank. Here $\vect w_{ext}$ excludes robot contact wrenches and
+already modeled gravity. See Schneider and Cannon (1992) for the object
+impedance framework; the Markdown notes contain source links and caveats.
+
+\clearpage
+\section*{Local endpoint impedance: fixed-base derivation}
+\noindent $\vect f_i$ denotes force from robot to object, so the reaction
+on the robot is $-\vect f_i$. All endpoint equations here are translational.
+\begin{equation}
+\vect M_{d,i}\ddot{\vect x}_i
++\vect D_{d,i}(\dot{\vect x}_i-\dot{\vect x}_{d,i})
++\vect K_{d,i}(\vect x_i-\vect x_{d,i})=-\vect f_i.
+\tag{DIMP-01}
+\end{equation}
+For a fixed reference and zero initial conditions,
+\begin{equation}
+\mathcal F_i(s)=(\vect M_{d,i}s^2+\vect D_{d,i}s+\vect K_{d,i})
+\mathcal E_i(s),\qquad\vect\epsilon_i=\vect x_{d,i}-\vect x_i.
+\tag{DIMP-02}
+\end{equation}
+\begin{align}
+\vect x_{d,i}&=\vect x_i+\vect K_{d,i}^{-1}\vect f_i
+\quad\text{(static equilibrium)},\tag{DIMP-03}\\
+\vect x_{d,i}^{cmd}&=\vect x_i^{nom}+\vect K_{d,i}^{-1}\vect f_i^*.
+\tag{DIMP-04}
+\end{align}
+
+\subsection*{Operational-space dynamics}
+Assume $\vect J$ has full row rank, and let
+$\vect c_q=\vect C_q\dot{\vect q}$.
+\begin{equation}
+\vect\Lambda=(\vect J\vect M_q^{-1}\vect J^T)^{-1},\qquad
+\bar{\vect J}=\vect M_q^{-1}\vect J^T\vect\Lambda.
+\tag{DIMP-05}
+\end{equation}
+\begin{equation}
+\begin{split}
+\vect\Lambda\ddot{\vect x}+\vect\mu_x+\vect p_x
+&=\vect F_{cmd}-\vect f_i,\\
+\vect\mu_x&=\vect\Lambda(\vect J\vect M_q^{-1}\vect c_q
+-\dot{\vect J}\dot{\vect q}),\\
+\vect p_x&=\vect\Lambda\vect J\vect M_q^{-1}\vect g_q,
+\quad\vect F_{cmd}=\bar{\vect J}^{T}\vect\tau.
+\end{split}\tag{DIMP-06}
+\end{equation}
+The negative Jacobian-derivative term follows directly from
+$\ddot{\vect x}=\vect J\ddot{\vect q}+\dot{\vect J}\dot{\vect q}$.
+Define $\vect s_i=\vect D_{d,i}(\dot{\vect x}_i-\dot{\vect x}_{d,i})
++\vect K_{d,i}(\vect x_i-\vect x_{d,i})$. Then
+\begin{equation}
+\vect F_{cmd,i}=\vect\mu_{x,i}+\vect p_{x,i}
+-\vect\Lambda_i\vect M_{d,i}^{-1}\vect s_i
++(\vect I-\vect\Lambda_i\vect M_{d,i}^{-1})\vect f_i.
+\tag{DIMP-07}
+\end{equation}
+\begin{equation}
+\vect\tau_i=\vect J_i^T\vect F_{cmd,i}
++(\vect I-\vect J_i^T\bar{\vect J}_i^T)\vect\tau_{0,i}.
+\tag{DIMP-08}
+\end{equation}
+\noindent For an error-acceleration impedance, add reference-acceleration
+feedforward. This derivation is for ideal fixed-base torque control without
+additional constraint contacts; it is not a floating-base walking controller.
+Operational-space background: Khatib (1987).
+
+\end{document}
