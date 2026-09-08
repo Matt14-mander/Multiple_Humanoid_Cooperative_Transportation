@@ -11,6 +11,10 @@ Implemented now:
 - a training hand-off script that emits `policy_spec.json` and a task contract;
 - an explicit dependency check preventing accidental installation into
   `croco_env`.
+- a PAINT-style `[Fx, Fy, Mz]` intent-estimation core with a versioned 72-to-3
+  signal contract, episode-disjoint offline trainer and deployment runtime;
+- Torch-only batched history, wrench-reference shift and world-to-base-yaw
+  label terms for an Isaac Lab manager integration.
 
 Still required in the pinned Ubuntu environment:
 
@@ -18,7 +22,8 @@ Still required in the pinned Ubuntu environment:
 2. register Isaac Lab observation, action, reward and event managers;
 3. bind the ground-truth force only to the critic and hindsight training term;
 4. connect RSL-RL PPO and export the policy plus normalizer to ONNX.
+5. connect the applied payload wrench event to the intent label term, without
+   exposing that privileged label to the deployable actor.
 
 The script fails deliberately after validation until those simulator-specific
 items exist; it must not silently claim to train a policy.
-

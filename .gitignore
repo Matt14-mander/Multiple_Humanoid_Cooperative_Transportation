@@ -13,6 +13,7 @@ dual-tron1-mujoco/.pytest_tmp*/
 dual-tron1-mujoco/.pytest_cache/
 dual-tron1-mujoco/runs/
 single-tron2-chip/.pytest-tmp*/
+single-tron2-chip/.pytest_tmp*/
 single-tron2-chip/.pytest-*/
 single-tron2-chip/.pytest_cache/
 single-tron2-chip/runs/

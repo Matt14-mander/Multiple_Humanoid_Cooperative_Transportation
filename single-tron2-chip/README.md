@@ -117,6 +117,31 @@ The default pulse produces the expected training-observation shift
 4. Train PPO on fixed-base reach motions and compare stiff, random-force and CHIP ablations.
 5. Release the base weld and add the hybrid wheel/leg/arm whole-body action adapter.
 
+## PAINT-style intent estimator scaffold
+
+`tron2_chip.intent_estimation` now contains a simulator-independent baseline
+for estimating planar partner intent `[Fx, Fy, Mz]` from four steps of Airbot
+joint position, velocity and previously applied arm-position commands. It
+includes the versioned 72-to-3 data contract, causal history, normalization,
+three-layer PyTorch MLP, regression losses, episode-disjoint dataset splits,
+standalone training, runtime filtering and ONNX export.
+
+The input dataset is an NPZ containing `features: [N, 72]`, `targets: [N, 3]`
+and `episode_ids: [N]`. Train outside Isaac Lab with:
+
+```bash
+pip install -e ".[train,test]"
+tron2-intent-train datasets/paint_intent_train.npz \
+  --output-dir artifacts/intent_estimator \
+  --epochs 100 --batch-size 1024
+```
+
+The resulting artifact bundle contains the model checkpoint, hashed signal
+specification, input/output normalization and a JSON training report. The
+Isaac Lab adapter supplies batched history construction and world-to-base-yaw
+wrench-label transforms, but data collection still needs to be connected to
+the configured TRON2_YG articulation and payload event manager on Ubuntu.
+
 ## Cross-platform hand-off
 
 `tron2_chip.core` defines the versioned `PolicySpec`, history-based observation
