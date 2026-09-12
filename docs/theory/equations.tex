@@ -222,4 +222,207 @@ feedforward. This derivation is for ideal fixed-base torque control without
 additional constraint contacts; it is not a floating-base walking controller.
 Operational-space background: Khatib (1987).
 
+\clearpage
+\section*{Collaborative legged manipulation with PIDC and contact QP}
+\noindent Source: Wang et al., \emph{Shared Object Manipulation with a Team
+of Collaborative Quadrupeds} (2025). These equations describe the centralized,
+torque-controlled formulation. They are planned, not yet implemented for TRON2.
+
+\subsection*{Constrained floating-base dynamics}
+For the aggregated generalized coordinates of all robots,
+\begin{align}
+\vect M\ddot{\vect q}+\vect h
+&=\vect S\vect\tau+\vect J_c^T\vect\lambda
++\vect J_x^T\vect F, \tag{PIDC-01}\\
+\vect J_c\dot{\vect q}&=\vect0,
+&\vect J_c\ddot{\vect q}+\dot{\vect J}_c\dot{\vect q}&=\vect0. \tag{PIDC-02}
+\end{align}
+The orthogonal projector onto admissible motion and its complementary
+constraint projector are
+\begin{equation}
+\vect P=\vect I-\vect J_c^T(\vect J_c\pinv)^T,\qquad
+\vect P^2=\vect P=\vect P^T,\qquad
+\vect P\vect J_c^T=\vect0.
+\tag{PIDC-03}
+\end{equation}
+Defining
+\begin{equation}
+\vect M_c=\vect P\vect M+\vect I-\vect P,\qquad
+\bar{\vect M}=\vect M\vect M_c^{-1},
+\tag{PIDC-04}
+\end{equation}
+avoids trying to invert the rank-deficient product $\vect P\vect M$. The
+constraint-consistent generalized acceleration is
+\begin{equation}
+\ddot{\vect q}=\vect M_c^{-1}
+\left(\vect P\vect S\vect\tau-\vect P\vect h
++\dot{\vect P}\dot{\vect q}+\vect P\vect J_x^T\vect F\right).
+\tag{PIDC-05}
+\end{equation}
+
+\subsection*{Constraint-consistent Cartesian impedance}
+With $\vect e=\vect x-\vect x_d$, define
+\begin{align}
+\vect\Lambda_c
+&=(\vect J_x\vect M_c^{-1}\vect P\vect J_x^T)^{-1}, \tag{PIDC-06a}\\
+\vect h_c
+&=\vect\Lambda_c\vect J_x\vect M_c^{-1}
+(\vect P\vect h-\dot{\vect P}\dot{\vect q})
+-\vect\Lambda_c\dot{\vect J}_x\dot{\vect q}, \tag{PIDC-06b}\\
+\vect F_{d,x}
+&=\vect h_c+\vect\Lambda_c\ddot{\vect x}_d
+-\vect K_d\dot{\vect e}-\vect K_p\vect e, \tag{PIDC-07}\\
+\vect\tau_M&=\sum_{x\in\mathcal T}\vect J_x^T\vect F_{d,x},
+\quad
+\mathcal T=\{\text{object, torsos, swing feet}\}. \tag{PIDC-08}
+\end{align}
+
+\subsection*{Grasp closure and object motion}
+For contact $i$, $\vect r_i$ points from the object center of mass to the
+contact frame and $\vect R_i$ rotates that frame into the object frame:
+\begin{align}
+\vect G_i&=
+\begin{bmatrix}
+\vect R_i&\vect0\\
+\skewm{\vect r_i}\vect R_i&\vect R_i
+\end{bmatrix},
+&\vect G&=[\vect G_1\ \cdots\ \vect G_B], \tag{PIDC-09}\\
+\vect J_{c,ee}
+&=\left[\vect I-\vect G^T(\vect G\pinv)^T\right]\vect J_{ee},
+&\vect J_o&=(\vect G\pinv)^T\vect J_{ee}, \tag{PIDC-10}\\
+\vect J_c&=
+\begin{bmatrix}\vect J_{cf}\\\vect J_{c,ee}\end{bmatrix},
+&\vect G\vect\lambda_{ee}^{int}&=\vect0. \tag{PIDC-11}
+\end{align}
+Thus $\vect J_{c,ee}$ removes relative hand motion that would violate a rigid
+grasp, while $\vect J_o$ maps compatible hand motion to object motion.
+
+\subsection*{Underactuation compensation and contact-wrench decision}
+The projected inverse-dynamics command is
+\begin{align}
+\vect B&=\vect I-[(\vect I-\vect S)(\vect I-\vect P)]\pinv,
+\tag{PIDC-12a}\\
+\vect\tau
+&=[\vect P\vect S]\pinv\vect P\vect\tau_M
++\vect B(\vect I-\vect P)\vect\tau_C, \tag{PIDC-12b}\\
+(\vect I-\vect P)\vect\tau_C&=\vect J_c^T\vect F_c. \tag{PIDC-12c}
+\end{align}
+After removing the constant motion term and the orthogonal cross terms from
+$\vect\tau^T\vect\tau$, the contact-wrench objective is
+\begin{equation}
+\min_{\vect F_c}\quad
+\vect F_c^T
+\underbrace{\vect J_c\vect B^T\vect B\vect J_c^T}_{\vect Q}
+\vect F_c.
+\tag{PIDC-13}
+\end{equation}
+
+\subsection*{Actual contact wrench and physical inequalities}
+The optimized command $\vect F_c$ is not generally the actual contact wrench.
+Substitution into the constrained dynamics gives
+\begin{equation}
+\vect\lambda=\vect\rho\vect F_c+\vect\eta,
+\tag{PIDC-14}
+\end{equation}
+where
+\begin{equation}
+\begin{split}
+\vect\rho={}&(\vect J_c^T)\pinv(\vect I-\vect P)
+(\bar{\vect M}\vect P-\vect I)\vect S\vect B\vect J_c^T,\\
+\vect\eta={}&(\vect J_c^T)\pinv(\vect I-\vect P)
+\bigl[\vect\varepsilon\vect\tau_M
++\bar{\vect M}(-\vect P\vect h+\dot{\vect P}\dot{\vect q})+\vect h\\
+&\hspace{37mm}
++(\bar{\vect M}\vect P-\vect I)\vect J_x^T\vect F\bigr],\\
+\vect\varepsilon={}&(\bar{\vect M}\vect P-\vect I)
+\vect S[\vect P\vect S]\pinv\vect P.
+\end{split}
+\tag{PIDC-15}
+\end{equation}
+For actual point-contact force $\vect\lambda_{f,i}$, with tangent directions
+$\vect n_{x,i},\vect n_{y,i}$, normal $\vect n_{z,i}$, and friction $\mu_i$,
+\begin{equation}
+\underbrace{\begin{bmatrix}-\infty\\-\infty\\0\\0\\0\end{bmatrix}}_{\underline{\vect d}}
+\le
+\underbrace{\begin{bmatrix}
+(\vect n_{x,i}-\mu_i\vect n_{z,i})^T\\
+(\vect n_{y,i}-\mu_i\vect n_{z,i})^T\\
+(\vect n_{x,i}+\mu_i\vect n_{z,i})^T\\
+(\vect n_{y,i}+\mu_i\vect n_{z,i})^T\\
+\vect n_{z,i}^T
+\end{bmatrix}}_{\vect C_i}
+\vect\lambda_{f,i}
+\le
+\underbrace{\begin{bmatrix}0\\0\\+\infty\\+\infty\\+\infty\end{bmatrix}}_{\bar{\vect d}}.
+\tag{PIDC-16}
+\end{equation}
+For a rectangular surface contact
+$\vect\lambda_i=[f_x,f_y,f_z,m_x,m_y,m_z]^T$, rolling and torsional limits are
+\begin{equation}
+\vect0\le
+\underbrace{\begin{bmatrix}
+0&0&\xi&0&0&-1\\
+0&0&\xi&0&0& 1\\
+0&0&\delta_x&-1&0&0\\
+0&0&\delta_x& 1&0&0\\
+0&0&\delta_y&0&-1&0\\
+0&0&\delta_y&0& 1&0
+\end{bmatrix}}_{\vect C_{m,i}}
+\vect\lambda_i.
+\tag{PIDC-17}
+\end{equation}
+Equivalently,
+$|m_z|\le\xi f_z$, $|m_x|\le\delta_xf_z$, and
+$|m_y|\le\delta_yf_z$.
+
+Let $\vect S_{ns}$ select only actuated joints. The actuator bounds become
+linear inequalities in $\vect F_c$:
+\begin{equation}
+\underline{\vect\tau}\le\vect\Xi\vect F_c\le\bar{\vect\tau},
+\quad
+\vect\Xi=\vect S_{ns}^T\vect B\vect J_c^T,
+\tag{PIDC-18}
+\end{equation}
+\begin{equation}
+\begin{split}
+\underline{\vect\tau}&=\vect\tau_{min}
+-\vect S_{ns}^T[\vect P\vect S]\pinv\vect P\vect\tau_M,\\
+\bar{\vect\tau}&=\vect\tau_{max}
+-\vect S_{ns}^T[\vect P\vect S]\pinv\vect P\vect\tau_M.
+\end{split}
+\tag{PIDC-19}
+\end{equation}
+
+\subsection*{Standard QP and final command}
+For selection matrices $\vect E_i$ extracting contact $i$ from
+$\vect\lambda$, substitute
+$\vect\lambda_i=\vect E_i(\vect\rho\vect F_c+\vect\eta)$ into
+the friction and moment inequalities. Stack them with the actuator bounds:
+\begin{equation}
+\begin{aligned}
+\min_{\vect F_c}\quad&
+\tfrac12\vect F_c^T\vect H\vect F_c+\vect g^T\vect F_c,\\
+\text{s.t.}\quad&\vect l\le\vect A\vect F_c\le\vect u,\\
+\vect H&=2(\vect J_c\vect B^T\vect B\vect J_c^T
++\epsilon_Q\vect I),\qquad \vect g=\vect0.
+\end{aligned}
+\tag{PIDC-20}
+\end{equation}
+The small $\epsilon_Q>0$ is an implementation regularizer, not part of the
+paper's original objective. After solving the QP,
+\begin{align}
+\vect\tau^*&=[\vect P\vect S]\pinv\vect P\vect\tau_M
++\vect B\vect J_c^T\vect F_c^*, \tag{PIDC-21a}\\
+\vect\lambda^*&=\vect\rho\vect F_c^*+\vect\eta. \tag{PIDC-21b}
+\end{align}
+
+\subsection*{TRON2 scope warning}
+The paper assumes stationary point feet, $\vect J_{cf}\dot{\vect q}=0$.
+For TRON2 wheelfoot locomotion, rolling velocity is allowed along the wheel
+heading; $\vect J_{cf}$ must therefore be replaced by nonholonomic rolling
+constraints. The stationary form applies directly only to solefoot or parked
+support. A full implementation also requires a verified joint-torque interface
+and a grasp model consistent with the wrench directions actually supported by
+the AIRBOT gripper.
+
 \end{document}

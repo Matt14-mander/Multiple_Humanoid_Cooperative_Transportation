@@ -929,6 +929,7 @@ $$
 | VL-01～VL-14 | `internal_force_analyzer.py`（零空间部分） | 待增加轴向 virtual-linkage 测试 | Partial/Planned |
 | LOAD-01～LOAD-05 | `dual_tron1_mujoco/carry_controller.py` | `test_carry_controller.py` | Implemented |
 | IMP-01～IMP-08 / DIMP-01～DIMP-08 | 本文 6.6 节推导；现有对象/解析阻抗仅覆盖部分 | 待补惯量整形与动态阻抗辨识测试 | Partial/Planned |
+| PIDC-01～PIDC-21 | `equations.tex` 与 `shared_object_manipulation_pidc_notes.md` | 待建 TRON2 全身动力学、接触约束与 QP 数值测试 | Planned |
 | PAY-01～PAY-07 | `dual_tron1_mujoco/payload_estimator.py` | `test_payload_estimator.py` | Implemented/Integration pending |
 | CHIP-01～CHIP-06 | `single-tron2-chip/` | `test_hindsight.py`, `test_core_deployment.py` | Analytic baseline |
 
@@ -983,6 +984,12 @@ $$
 ### 2026-09-03：对象阻抗与分布阻抗
 
 已整理阻抗博客的对象层与末端层思路；补充 twist/欧拉角、惯量参考点、反力符号和完整拉普拉斯惯性项的限制。后续代码接入应先用固定基座验证，不直接把平面例子推广为行走中全身控制。
+
+### 2026-09-12：多足协同搬运 PIDC 与接触力 QP
+
+- 已在 [`shared_object_manipulation_pidc_notes.md`](shared_object_manipulation_pidc_notes.md) 整理 *Shared Object Manipulation with a Team of Collaborative Quadrupeds* 的式 (1)--(26)。
+- 控制链确定为：对象/躯干/摆动足阻抗生成运动力矩，PIDC 处理欠驱动和接触等式约束，QP 优化足端/手端 wrench，并用实际接触 wrench 的仿射关系施加摩擦、单边、接触面力矩和执行器限制。
+- TRON2 wheelfoot 不能直接使用静止点足约束；需要增加滚动方向允许速度的非完整约束。该方法当前标记为 **[Planned]**。
 
 ### 待补实验记录模板
 

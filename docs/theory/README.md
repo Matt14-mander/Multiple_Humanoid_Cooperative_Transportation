@@ -13,8 +13,10 @@
 ## 文件
 
 - [`model_derivation_notes.md`](model_derivation_notes.md)：中文主笔记。用于持续记录假设、公式推导、实现映射、实验结果和待办。
+- [`shared_object_manipulation_pidc_notes.md`](shared_object_manipulation_pidc_notes.md)：多足机器人协同搬运的投影逆动力学、对象阻抗、刚性抓取与接触 wrench QP 推导，并包含 TRON2 轮足适配边界。
+- [`paint_intent_estimator_plan.md`](paint_intent_estimator_plan.md)：TRON2 + 松灵机械臂的 PAINT intent estimator 数据、训练和部署模块规划。
 - [`equations.tex`](equations.tex)：可独立编译的纯 LaTeX 公式库。用于论文和 PPT 复制公式。
-- [`equations.pdf`](equations.pdf)：统一公式手册，已包含对象阻抗与末端分布阻抗等最新内容（2026-09-03 更新，共 4 页）。带日期的 `equations_2026-09-03.pdf` 保留为备份。
+- [`equations.pdf`](equations.pdf)：统一公式手册，已包含对象阻抗、末端分布阻抗、协同搬运 PIDC 与接触 wrench QP（2026-09-12 更新，共 7 页）。带日期的旧版本保留为历史备份。
 
 ## 推荐工作流
 
