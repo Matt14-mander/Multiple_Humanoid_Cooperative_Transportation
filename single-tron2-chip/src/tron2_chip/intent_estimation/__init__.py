@@ -4,7 +4,7 @@ PyTorch-dependent components live in ``network``, ``losses`` and ``trainer``
 so importing this package remains possible in lightweight deployment tools.
 """
 
-from .dataset import IntentDataset, split_by_episode
+from .dataset import IntentDataset, split_by_episode, split_from_labels
 from .history import IntentHistoryBuffer
 from .normalization import NormalizationStats
 from .runtime import CallableIntentBackend, IntentEstimatorRuntime
@@ -18,5 +18,5 @@ __all__ = [
     "IntentHistoryBuffer",
     "NormalizationStats",
     "split_by_episode",
+    "split_from_labels",
 ]
-

@@ -18,6 +18,7 @@ single-tron2-chip/.pytest-*/
 single-tron2-chip/.pytest_cache/
 single-tron2-chip/runs/
 single-tron2-chip/artifacts/
+single-tron2-chip/datasets/
 single-tron2-chip/logs/
 
 # Generated MJCF files contain machine-specific absolute mesh paths
@@ -30,6 +31,7 @@ dual-tron1-mujoco/7-23.txt
 # Editor and operating-system files
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
 desktop.ini

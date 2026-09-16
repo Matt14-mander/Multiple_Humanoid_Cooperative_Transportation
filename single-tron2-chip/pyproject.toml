@@ -22,6 +22,8 @@ tron2-chip-plot = "tron2_chip.plot_csv:main"
 tron2-chip-deploy = "tron2_chip.run_deployment:main"
 tron2-chip-sweep = "tron2_chip.evaluation.compliance_sweep:main"
 tron2-intent-train = "tron2_chip.intent_estimation.train:main"
+tron2-intent-prepare-ocs2 = "tron2_chip.intent_estimation.prepare_ocs2:main"
+tron2-intent-export = "tron2_chip.intent_estimation.export_model:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

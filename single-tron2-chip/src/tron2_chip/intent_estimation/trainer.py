@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from .dataset import split_by_episode
+from .dataset import split_by_episode, split_from_labels
 from .losses import physical_metrics, regression_loss
 from .network import IntentEstimatorMLP
 from .normalization import NormalizationStats
@@ -100,9 +100,14 @@ def train_intent_estimator(dataset, spec, output_dir: Path, config=None):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(config.seed)
 
-    train_set, validation_set, test_set = split_by_episode(
-        dataset, config.validation_fraction, config.test_fraction, config.seed
-    )
+    if dataset.split_labels is None:
+        train_set, validation_set, test_set = split_by_episode(
+            dataset, config.validation_fraction, config.test_fraction, config.seed
+        )
+        split_source = "generated_episode_split"
+    else:
+        train_set, validation_set, test_set = split_from_labels(dataset)
+        split_source = "dataset_split_labels"
     input_stats = NormalizationStats.fit(train_set.features)
     output_stats = NormalizationStats.fit(train_set.targets)
     train_loader = _loader(train_set, input_stats, output_stats, config.batch_size, True, config.seed)
@@ -185,6 +190,7 @@ def train_intent_estimator(dataset, spec, output_dir: Path, config=None):
         },
         "epochs_completed": len(history),
         "device": str(device),
+        "split_source": split_source,
         "history": history,
     }
     (output_dir / "training_report.json").write_text(

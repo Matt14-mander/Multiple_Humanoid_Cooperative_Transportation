@@ -142,6 +142,30 @@ Isaac Lab adapter supplies batched history construction and world-to-base-yaw
 wrench-label transforms, but data collection still needs to be connected to
 the configured TRON2_YG articulation and payload event manager on Ubuntu.
 
+An OCS2 rollout bundle containing per-episode NPZ files can be adapted without
+mixing adjacent samples across dataset splits:
+
+```bash
+tron2-intent-prepare-ocs2 /path/to/rollout \
+  --output datasets/ocs2_intent_v1.npz \
+  --spec-output datasets/ocs2_intent_v1_spec.json \
+  --report-output datasets/ocs2_intent_v1_preparation_report.json
+
+tron2-intent-train datasets/ocs2_intent_v1.npz \
+  --spec datasets/ocs2_intent_v1_spec.json \
+  --output-dir artifacts/ocs2_intent_v1 \
+  --epochs 100 --batch-size 1024
+
+tron2-intent-export artifacts/ocs2_intent_v1
+```
+
+The OCS2 adapter uses four frames of actual arm position/velocity and the
+one-step-shifted arm position reference. Its provisional label is horizon zero
+of `future_wrench`, projected to `[Fx, Fy, Mz]`. This is useful for pipeline
+validation but is not a substitute for a verified partner-applied payload
+wrench label; the generated preparation report records this limitation and
+flags target channels with insufficient excitation.
+
 ## Cross-platform hand-off
 
 `tron2_chip.core` defines the versioned `PolicySpec`, history-based observation
