@@ -1,0 +1,26 @@
+seed: 42
+data_roots:
+  # Local collection layout used for the published checkpoint. Override these
+  # paths in a private config when the dataset is stored elsewhere.
+  - ../../MHCT/data/raw/tron2_external_wrench_v3_multilevel_paired5
+  - ../../MHCT/data/raw/tron2_external_wrench_v3_multilevel_paired15_tail
+window_frames: 30
+sample_dt_s: 0.02
+model:
+  type: gru
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.10
+training:
+  epochs: 80
+  batch_size: 512
+  learning_rate: 0.0003
+  weight_decay: 0.00001
+  patience: 12
+  num_workers: 0
+  device: auto
+  max_train_batches: null
+zero_thresholds:
+  force_n: 1.0
+  torque_nm: 0.25
+output_dir: artifacts/external_wrench_gru

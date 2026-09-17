@@ -1,0 +1,299 @@
+{
+  "data_roots": [
+    {
+      "root": "tron2_external_wrench_v3_multilevel_paired5",
+      "episodes": 255,
+      "schema_version": "2.0",
+      "manifest_accepted": 215,
+      "manifest_falls": 40,
+      "manifest_split_episodes": {
+        "train": 204,
+        "validation": 51,
+        "test": 0
+      }
+    },
+    {
+      "root": "tron2_external_wrench_v3_multilevel_paired15_tail",
+      "episodes": 765,
+      "schema_version": "2.0",
+      "manifest_accepted": 746,
+      "manifest_falls": 19,
+      "manifest_split_episodes": {
+        "train": 561,
+        "validation": 0,
+        "test": 204
+      }
+    }
+  ],
+  "episodes_total": 1020,
+  "unique_sources": 20,
+  "label": {
+    "field": "external_wrench_base_at_base_origin",
+    "frame": "base_Link",
+    "reference_point": "base_Link_origin",
+    "components": [
+      "Fx",
+      "Fy",
+      "Fz",
+      "Mx",
+      "My",
+      "Mz"
+    ],
+    "units": [
+      "N",
+      "N",
+      "N",
+      "Nm",
+      "Nm",
+      "Nm"
+    ],
+    "prediction_horizon_s": 0.0
+  },
+  "features": {
+    "fields": [
+      "base_linear_velocity_body",
+      "base_angular_velocity_body",
+      "projected_gravity_body",
+      "arm_position_actual",
+      "arm_velocity_actual",
+      "leg_position_actual",
+      "leg_velocity_actual",
+      "gait_phase",
+      "previous_leg_action"
+    ],
+    "layout": [
+      {
+        "field": "base_linear_velocity_body",
+        "slice": [
+          0,
+          3
+        ],
+        "dimension": 3
+      },
+      {
+        "field": "base_angular_velocity_body",
+        "slice": [
+          3,
+          6
+        ],
+        "dimension": 3
+      },
+      {
+        "field": "projected_gravity_body",
+        "slice": [
+          6,
+          9
+        ],
+        "dimension": 3
+      },
+      {
+        "field": "arm_position_actual",
+        "slice": [
+          9,
+          15
+        ],
+        "dimension": 6
+      },
+      {
+        "field": "arm_velocity_actual",
+        "slice": [
+          15,
+          21
+        ],
+        "dimension": 6
+      },
+      {
+        "field": "leg_position_actual",
+        "slice": [
+          21,
+          31
+        ],
+        "dimension": 10
+      },
+      {
+        "field": "leg_velocity_actual",
+        "slice": [
+          31,
+          41
+        ],
+        "dimension": 10
+      },
+      {
+        "field": "gait_phase",
+        "slice": [
+          41,
+          43
+        ],
+        "dimension": 2
+      },
+      {
+        "field": "previous_leg_action",
+        "slice": [
+          43,
+          53
+        ],
+        "dimension": 10
+      }
+    ],
+    "dimension": 53,
+    "forbidden_fields": [
+      "external_wrench_base_at_base_origin",
+      "external_wrench_payload_at_body_com",
+      "future_wrench",
+      "ocs2_arm_on_base_wrench_plan"
+    ],
+    "leakage_check": "passed"
+  },
+  "window": {
+    "frames": 30,
+    "duration_s": 0.6,
+    "sample_dt_s": 0.02,
+    "alignment": "history indices max(0,t-29)..t; target at t",
+    "episode_reset": "history never crosses episode boundary",
+    "padding": "left-repeat episode frame 0 until 30 frames"
+  },
+  "splits": {
+    "train": {
+      "episodes": 765,
+      "sources": 15,
+      "source_trajectory_ids": [
+        "trajectory_000000",
+        "trajectory_000002",
+        "trajectory_000003",
+        "trajectory_000004",
+        "trajectory_000011",
+        "trajectory_000012",
+        "trajectory_000013",
+        "trajectory_000014",
+        "trajectory_000015",
+        "trajectory_000016",
+        "trajectory_000017",
+        "trajectory_000018",
+        "trajectory_000019",
+        "trajectory_000020",
+        "trajectory_000021"
+      ],
+      "frames_retained": 168329,
+      "class_counts_before_sampling": {
+        "zero": 140069,
+        "positive": 14130,
+        "negative": 14130
+      },
+      "episode_length_frames": {
+        "min": 120,
+        "max": 227,
+        "mean": 220.03790849673203
+      },
+      "target_component_min": {
+        "Fx": -3.0720863342285156,
+        "Fy": -4.999975204467773,
+        "Fz": -4.964795112609863,
+        "Mx": -3.0857064723968506,
+        "My": -3.4342899322509766,
+        "Mz": -2.5992166996002197
+      },
+      "target_component_max": {
+        "Fx": 2.62074875831604,
+        "Fy": 4.998044490814209,
+        "Fz": 4.827711582183838,
+        "Mx": 3.077122688293457,
+        "My": 3.2378783226013184,
+        "Mz": 2.6013095378875732
+      },
+      "class_counts_after_balanced_sampling_per_epoch": {
+        "zero": 56109,
+        "positive": 56109,
+        "negative": 56109
+      }
+    },
+    "validation": {
+      "episodes": 51,
+      "sources": 1,
+      "source_trajectory_ids": [
+        "trajectory_000001"
+      ],
+      "frames_retained": 10052,
+      "class_counts_before_sampling": {
+        "zero": 8168,
+        "positive": 942,
+        "negative": 942
+      },
+      "episode_length_frames": {
+        "min": 119,
+        "max": 226,
+        "mean": 197.09803921568627
+      },
+      "target_component_min": {
+        "Fx": -2.470749855041504,
+        "Fy": -4.993445873260498,
+        "Fz": -4.922229290008545,
+        "Mx": -2.903338670730591,
+        "My": -3.418569803237915,
+        "Mz": -2.5823755264282227
+      },
+      "target_component_max": {
+        "Fx": 2.1159145832061768,
+        "Fy": 4.998483180999756,
+        "Fz": 4.7603349685668945,
+        "Mx": 2.8980958461761475,
+        "My": 3.0546774864196777,
+        "Mz": 2.5855722427368164
+      }
+    },
+    "test": {
+      "episodes": 204,
+      "sources": 4,
+      "source_trajectory_ids": [
+        "trajectory_000006",
+        "trajectory_000007",
+        "trajectory_000008",
+        "trajectory_000022"
+      ],
+      "frames_retained": 46104,
+      "class_counts_before_sampling": {
+        "zero": 38568,
+        "positive": 3768,
+        "negative": 3768
+      },
+      "episode_length_frames": {
+        "min": 226,
+        "max": 226,
+        "mean": 226.0
+      },
+      "target_component_min": {
+        "Fx": -2.299548625946045,
+        "Fy": -4.999959468841553,
+        "Fz": -4.947928428649902,
+        "Mx": -2.792367935180664,
+        "My": -3.364736557006836,
+        "Mz": -2.645786762237549
+      },
+      "target_component_max": {
+        "Fx": 1.9745172262191772,
+        "Fy": 4.995125770568848,
+        "Fz": 4.784704685211182,
+        "Mx": 2.779616355895996,
+        "My": 3.037930488586426,
+        "Mz": 2.656548500061035
+      }
+    }
+  },
+  "source_split_overlap": {
+    "train_validation": 0,
+    "train_test": 0,
+    "validation_test": 0
+  },
+  "falls": {
+    "episodes": 59,
+    "criterion": "manifest fall=true; drop first done frame and all following",
+    "original_frames": 7357,
+    "retained_pre_fall_frames": 7298,
+    "dropped_terminal_frames": 59
+  },
+  "normalization": {
+    "fitted_on": "train only",
+    "train_source_sha256": "24c6d72977c7bb4d5ac0a0e2ccfed78425290b9ca7bbbb733d5d27ae5a56150b",
+    "input_dimensions": 53,
+    "output_dimensions": 6
+  }
+}

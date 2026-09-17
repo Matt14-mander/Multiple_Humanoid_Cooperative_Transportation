@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "model": "external_wrench_gru.onnx",
+  "input_name": "history",
+  "input_shape": [
+    "batch",
+    30,
+    53
+  ],
+  "feature_fields": [
+    "base_linear_velocity_body",
+    "base_angular_velocity_body",
+    "projected_gravity_body",
+    "arm_position_actual",
+    "arm_velocity_actual",
+    "leg_position_actual",
+    "leg_velocity_actual",
+    "gait_phase",
+    "previous_leg_action"
+  ],
+  "sample_dt_s": 0.02,
+  "output_name": "wrench_normalized",
+  "output_components": [
+    "Fx",
+    "Fy",
+    "Fz",
+    "Mx",
+    "My",
+    "Mz"
+  ],
+  "output_frame": "base_Link",
+  "output_reference_point": "base_Link_origin",
+  "output_units": [
+    "N",
+    "N",
+    "N",
+    "Nm",
+    "Nm",
+    "Nm"
+  ],
+  "normalization": {
+    "input": "input_normalization.npz",
+    "output": "output_normalization.npz"
+  }
+}

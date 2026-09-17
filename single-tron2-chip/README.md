@@ -166,6 +166,52 @@ validation but is not a substitute for a verified partner-applied payload
 wrench label; the generated preparation report records this limitation and
 flags target channels with insufficient excitation.
 
+## Current 6D external-wrench estimator
+
+`tron2_chip.external_wrench_estimation` is the leakage-safe successor used for
+sim2sim deployment. Unlike the provisional intent adapter above, its label is
+the current `external_wrench_base_at_base_origin`, expressed in `base_Link` at
+`base_Link_origin`; it never uses `future_wrench`, the OCS2 wrench plan, the
+payload-COM wrench, or its own target as an input.
+
+The GRU consumes 30 frames (0.6 s at 50 Hz) of 53 explicitly listed
+proprioceptive signals and predicts `[Fx,Fy,Fz,Mx,My,Mz]` in N/Nm. The checked
+10-epoch checkpoint and ONNX deployment bundle are versioned under
+`models/external_wrench_gru_10ep`. For a policy-safe first integration, create
+an independent `OnnxWrenchEstimatorRuntime`, call `reset()` alongside the
+walking-policy reset, and call `update(observation)` before policy inference.
+Do not concatenate its output into the policy observation until a controller
+interface explicitly opts into wrench feedback.
+
+```python
+from pathlib import Path
+from tron2_chip.external_wrench_estimation.onnx_runtime import OnnxWrenchEstimatorRuntime
+
+estimator = OnnxWrenchEstimatorRuntime(Path("models/external_wrench_gru_10ep"))
+estimator.reset()
+wrench_base = estimator.update(proprioceptive_observation)
+```
+
+The training dataset is intentionally not committed. With the two data roots
+available in the sibling `MHCT` directory, audit/retrain/export using:
+
+```powershell
+tron2-wrench-audit --output artifacts/external_wrench_data_audit.json
+tron2-wrench-train --config configs/external_wrench_gru.yaml
+tron2-wrench-export artifacts/external_wrench_gru
+```
+
+Keep training, artifact provenance and offline runtime checks in this
+`single-tron2-chip` project: it matches the WFYG body-plus-6-DoF-arm feature
+contract and already isolates policy backends and ONNX Runtime sessions. The
+workspace's existing *walking* sim2sim loop lives separately in
+`TRON2-Sim2sim/tron2_rl_deploy_python/controllers/WheelfootController.py`.
+That controller currently exposes only the wheel-leg state, so the estimator
+must not be dropped into it until the matching six arm positions/velocities are
+carried through the simulator/SDK observation path. After that 53D contract,
+timing, reset and frame/units checks pass, port one independent estimator
+session per robot into `dual-tron2-mujoco`.
+
 ## Cross-platform hand-off
 
 `tron2_chip.core` defines the versioned `PolicySpec`, history-based observation

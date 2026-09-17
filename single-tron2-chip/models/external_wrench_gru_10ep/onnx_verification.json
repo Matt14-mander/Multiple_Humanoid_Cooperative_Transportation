@@ -1,0 +1,7 @@
+{
+  "onnx_path": "external_wrench_gru.onnx",
+  "samples": 8,
+  "max_abs_error_normalized": 6.109476089477539e-07,
+  "mean_abs_error_normalized": 1.996522769331932e-07,
+  "allclose_rtol_1e-4_atol_1e-5": true
+}

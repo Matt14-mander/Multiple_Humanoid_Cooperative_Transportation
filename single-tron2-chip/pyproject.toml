@@ -11,7 +11,7 @@ dependencies = ["mujoco>=3.2.3,<3.3", "numpy>=1.23,<2"]
 
 [project.optional-dependencies]
 test = ["pytest>=7", "matplotlib>=3.7"]
-train = ["gymnasium>=0.29", "torch>=2.1", "onnx>=1.15"]
+train = ["gymnasium>=0.29", "torch>=2.1", "onnx>=1.15", "PyYAML>=6"]
 plot = ["matplotlib>=3.7"]
 deployment = ["onnxruntime>=1.17"]
 
@@ -24,6 +24,9 @@ tron2-chip-sweep = "tron2_chip.evaluation.compliance_sweep:main"
 tron2-intent-train = "tron2_chip.intent_estimation.train:main"
 tron2-intent-prepare-ocs2 = "tron2_chip.intent_estimation.prepare_ocs2:main"
 tron2-intent-export = "tron2_chip.intent_estimation.export_model:main"
+tron2-wrench-audit = "tron2_chip.external_wrench_estimation.audit:main"
+tron2-wrench-train = "tron2_chip.external_wrench_estimation.train:main"
+tron2-wrench-export = "tron2_chip.external_wrench_estimation.export:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
